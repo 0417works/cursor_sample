@@ -1,5 +1,8 @@
-import { Routes, Route } from 'react-router-dom'
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from 'react-query'
+import { Toaster } from 'react-hot-toast'
+import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import Login from './pages/Login'
@@ -7,11 +10,7 @@ import Register from './pages/Register'
 import Posts from './pages/Posts'
 import PostDetail from './pages/PostDetail'
 import CreatePost from './pages/CreatePost'
-import EditPost from './pages/EditPost'
 import Profile from './pages/Profile'
-import NotFound from './pages/NotFound'
-import { AuthProvider } from './contexts/AuthContext'
-import { Toaster } from 'react-hot-toast'
 
 // React Queryクライアントの設定
 const queryClient = new QueryClient({
@@ -24,49 +23,55 @@ const queryClient = new QueryClient({
   },
 })
 
-function App() {
+const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <div className="min-h-screen bg-gray-50">
-          <Layout>
+        <Router>
+          <div className="App">
             <Routes>
-              <Route path="/" element={<Home />} />
+              {/* 認証不要のページ */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/posts" element={<Posts />} />
-              <Route path="/posts/:id" element={<PostDetail />} />
-              <Route path="/posts/create" element={<CreatePost />} />
-              <Route path="/posts/:id/edit" element={<EditPost />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="*" element={<NotFound />} />
+              
+              {/* レイアウト付きのページ */}
+              <Route path="/" element={<Layout><Home /></Layout>} />
+              <Route path="/posts" element={<Layout><Posts /></Layout>} />
+              <Route path="/posts/:id" element={<Layout><PostDetail /></Layout>} />
+              <Route path="/posts/create" element={<Layout><CreatePost /></Layout>} />
+              <Route path="/profile" element={<Layout><Profile /></Layout>} />
+              
+              {/* 404ページ */}
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-          </Layout>
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-              success: {
-                duration: 3000,
-                iconTheme: {
-                  primary: '#10B981',
-                  secondary: '#fff',
+            
+            {/* トースト通知 */}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: '#363636',
+                  color: '#fff',
                 },
-              },
-              error: {
-                duration: 5000,
-                iconTheme: {
-                  primary: '#EF4444',
-                  secondary: '#fff',
+                success: {
+                  duration: 3000,
+                  iconTheme: {
+                    primary: '#10b981',
+                    secondary: '#fff',
+                  },
                 },
-              },
-            }}
-          />
-        </div>
+                error: {
+                  duration: 5000,
+                  iconTheme: {
+                    primary: '#ef4444',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </div>
+        </Router>
       </AuthProvider>
     </QueryClientProvider>
   )

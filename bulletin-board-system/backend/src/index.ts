@@ -45,12 +45,12 @@ app.get('/health', (req, res) => {
 
 // APIルートの設定
 app.use('/api/auth', require('./routes/auth').default);
-app.use('/api/users', require('./routes/users').default);
 app.use('/api/posts', require('./routes/posts').default);
 app.use('/api/comments', require('./routes/comments').default);
 app.use('/api/categories', require('./routes/categories').default);
-app.use('/api/tags', require('./routes/tags').default);
 app.use('/api/upload', require('./routes/upload').default);
+app.use('/api/weather', require('./routes/weather').default);
+app.use('/api/images', require('./routes/images').default);
 
 // 404エラーハンドリング
 app.use('*', (req, res) => {

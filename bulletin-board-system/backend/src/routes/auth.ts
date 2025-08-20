@@ -73,13 +73,13 @@ router.post('/register', [
     // JWTトークンの生成
     const accessToken = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
     const refreshToken = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
     );
 
@@ -154,13 +154,13 @@ router.post('/login', [
     // JWTトークンの生成
     const accessToken = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
     const refreshToken = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
     );
 
@@ -236,7 +236,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     }
 
     // リフレッシュトークンの検証
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET || 'fallback-secret') as any;
     
     // セッションの確認
     const session = await prisma.userSession.findUnique({
@@ -263,7 +263,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     // 新しいアクセストークンの生成
     const newAccessToken = jwt.sign(
       { userId: session.user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
@@ -308,7 +308,7 @@ router.post('/forgot-password', [
       // パスワードリセットトークンの生成
       const resetToken = jwt.sign(
         { userId: user.id, type: 'password-reset' },
-        process.env.JWT_SECRET!,
+        process.env.JWT_SECRET || 'fallback-secret',
         { expiresIn: '1h' }
       );
 

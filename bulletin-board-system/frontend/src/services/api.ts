@@ -1,11 +1,10 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios'
-import toast from 'react-hot-toast'
+import axios from 'axios'
 
 // APIのベースURL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
 
 // axiosインスタンスの作成
-const apiClient: AxiosInstance = axios.create({
+const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
@@ -13,7 +12,7 @@ const apiClient: AxiosInstance = axios.create({
   },
 })
 
-// リクエストインターセプター（トークンの自動付与）
+// リクエストインターセプター（認証トークンの追加）
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken')
@@ -27,49 +26,16 @@ apiClient.interceptors.request.use(
   }
 )
 
-// レスポンスインターセプター（トークン更新、エラーハンドリング）
+// レスポンスインターセプター（エラーハンドリング）
 apiClient.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response
-  },
+  (response) => response,
   async (error) => {
-    const originalRequest = error.config
-
-    // 401エラーでトークンが期限切れの場合
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-
-      try {
-        const refreshToken = localStorage.getItem('refreshToken')
-        if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-            refreshToken,
-          })
-
-          const { accessToken, refreshToken: newRefreshToken } = response.data
-          localStorage.setItem('accessToken', accessToken)
-          localStorage.setItem('refreshToken', newRefreshToken)
-
-          // 元のリクエストを再実行
-          originalRequest.headers.Authorization = `Bearer ${accessToken}`
-          return apiClient(originalRequest)
-        }
-      } catch (refreshError) {
-        // リフレッシュトークンも期限切れの場合
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        window.location.href = '/login'
-        return Promise.reject(refreshError)
-      }
+    if (error.response?.status === 401) {
+      // トークンが無効な場合、ローカルストレージをクリア
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      window.location.href = '/login'
     }
-
-    // エラーメッセージの表示
-    if (error.response?.data?.error) {
-      toast.error(error.response.data.error)
-    } else if (error.message) {
-      toast.error(error.message)
-    }
-
     return Promise.reject(error)
   }
 )
@@ -77,50 +43,71 @@ apiClient.interceptors.response.use(
 // 認証関連のAPI
 export const authApi = {
   // ユーザー登録
-  register: async (email: string, username: string, password: string) => {
-    const response = await apiClient.post('/auth/register', {
-      email,
-      username,
-      password,
-    })
+  register: async (userData: {
+    email: string
+    username: string
+    password: string
+  }) => {
+    const response = await apiClient.post('/auth/register', userData)
     return response.data
   },
 
-  // ログイン
-  login: async (email: string, password: string) => {
-    const response = await apiClient.post('/auth/login', {
-      email,
-      password,
-    })
+  // ユーザーログイン
+  login: async (credentials: { email: string; password: string }) => {
+    const response = await apiClient.post('/auth/login', credentials)
     return response.data
   },
 
   // ログアウト
-  logout: async (refreshToken: string) => {
-    const response = await apiClient.post('/auth/logout', {
-      refreshToken,
-    })
+  logout: async () => {
+    const response = await apiClient.post('/auth/logout')
+    return response.data
+  },
+
+  // トークンリフレッシュ
+  refreshToken: async () => {
+    const refreshToken = localStorage.getItem('refreshToken')
+    const response = await apiClient.post('/auth/refresh', { refreshToken })
     return response.data
   },
 
   // 現在のユーザー情報取得
   getCurrentUser: async () => {
     const response = await apiClient.get('/auth/me')
-    return response.data.user
+    return response.data
   },
 
   // プロフィール更新
-  updateProfile: async (data: any) => {
-    const response = await apiClient.put('/users/profile', data)
-    return response.data.user
+  updateProfile: async (userData: {
+    username?: string
+    email?: string
+    bio?: string
+  }) => {
+    const response = await apiClient.put('/auth/profile', userData)
+    return response.data
   },
 
   // パスワード変更
-  changePassword: async (currentPassword: string, newPassword: string) => {
-    const response = await apiClient.put('/users/change-password', {
-      currentPassword,
-      newPassword,
-    })
+  changePassword: async (passwordData: {
+    currentPassword: string
+    newPassword: string
+  }) => {
+    const response = await apiClient.put('/auth/password', passwordData)
+    return response.data
+  },
+
+  // パスワードリセット要求
+  forgotPassword: async (email: string) => {
+    const response = await apiClient.post('/auth/forgot-password', { email })
+    return response.data
+  },
+
+  // パスワードリセット
+  resetPassword: async (resetData: {
+    token: string
+    newPassword: string
+  }) => {
+    const response = await apiClient.post('/auth/reset-password', resetData)
     return response.data
   },
 }
@@ -128,14 +115,16 @@ export const authApi = {
 // 投稿関連のAPI
 export const postsApi = {
   // 投稿一覧取得
-  getPosts: async (params?: {
+  getPosts: async (params: {
     page?: number
     limit?: number
-    categoryId?: string
     search?: string
+    categoryId?: string
+    authorId?: string
     sortBy?: string
     sortOrder?: 'asc' | 'desc'
-  }) => {
+    excludeId?: string
+  } = {}) => {
     const response = await apiClient.get('/posts', { params })
     return response.data
   },
@@ -147,26 +136,26 @@ export const postsApi = {
   },
 
   // 投稿作成
-  createPost: async (data: {
+  createPost: async (postData: {
     title: string
     content: string
-    categoryId?: string
+    categoryId: string
     imageUrl?: string
-    tags?: string[]
+    isPublished?: boolean
   }) => {
-    const response = await apiClient.post('/posts', data)
+    const response = await apiClient.post('/posts', postData)
     return response.data
   },
 
   // 投稿更新
-  updatePost: async (id: string, data: {
+  updatePost: async (id: string, postData: {
     title?: string
     content?: string
     categoryId?: string
     imageUrl?: string
-    tags?: string[]
+    isPublished?: boolean
   }) => {
-    const response = await apiClient.put(`/posts/${id}`, data)
+    const response = await apiClient.put(`/posts/${id}`, postData)
     return response.data
   },
 
@@ -177,8 +166,14 @@ export const postsApi = {
   },
 
   // 投稿の公開状態切り替え
-  togglePublish: async (id: string) => {
-    const response = await apiClient.patch(`/posts/${id}/toggle-publish`)
+  togglePostStatus: async (id: string) => {
+    const response = await apiClient.patch(`/posts/${id}/toggle-status`)
+    return response.data
+  },
+
+  // 投稿の閲覧数増加
+  incrementViewCount: async (id: string) => {
+    const response = await apiClient.patch(`/posts/${id}/increment-view`)
     return response.data
   },
 }
@@ -186,26 +181,28 @@ export const postsApi = {
 // コメント関連のAPI
 export const commentsApi = {
   // コメント一覧取得
-  getComments: async (postId: string, params?: {
+  getComments: async (postId: string, params: {
     page?: number
     limit?: number
-  }) => {
-    const response = await apiClient.get(`/comments/post/${postId}`, { params })
+  } = {}) => {
+    const response = await apiClient.get(`/posts/${postId}/comments`, { params })
     return response.data
   },
 
   // コメント作成
-  createComment: async (data: {
+  createComment: async (commentData: {
     content: string
     postId: string
   }) => {
-    const response = await apiClient.post('/comments', data)
+    const response = await apiClient.post('/comments', commentData)
     return response.data
   },
 
   // コメント更新
-  updateComment: async (id: string, data: { content: string }) => {
-    const response = await apiClient.put(`/comments/${id}`, data)
+  updateComment: async (id: string, commentData: {
+    content: string
+  }) => {
+    const response = await apiClient.put(`/comments/${id}`, commentData)
     return response.data
   },
 
@@ -231,22 +228,20 @@ export const categoriesApi = {
   },
 
   // カテゴリー作成（管理者・モデレーターのみ）
-  createCategory: async (data: {
+  createCategory: async (categoryData: {
     name: string
     description?: string
-    color?: string
   }) => {
-    const response = await apiClient.post('/categories', data)
+    const response = await apiClient.post('/categories', categoryData)
     return response.data
   },
 
   // カテゴリー更新（管理者・モデレーターのみ）
-  updateCategory: async (id: string, data: {
+  updateCategory: async (id: string, categoryData: {
     name?: string
     description?: string
-    color?: string
   }) => {
-    const response = await apiClient.put(`/categories/${id}`, data)
+    const response = await apiClient.put(`/categories/${id}`, categoryData)
     return response.data
   },
 
@@ -255,31 +250,15 @@ export const categoriesApi = {
     const response = await apiClient.delete(`/categories/${id}`)
     return response.data
   },
-}
 
-// タグ関連のAPI
-export const tagsApi = {
-  // タグ一覧取得
-  getTags: async () => {
-    const response = await apiClient.get('/tags')
-    return response.data
-  },
-
-  // タグ作成（管理者・モデレーターのみ）
-  createTag: async (data: { name: string; color?: string }) => {
-    const response = await apiClient.post('/tags', data)
-    return response.data
-  },
-
-  // タグ更新（管理者・モデレーターのみ）
-  updateTag: async (id: string, data: { name?: string; color?: string }) => {
-    const response = await apiClient.put(`/tags/${id}`, data)
-    return response.data
-  },
-
-  // タグ削除（管理者・モデレーターのみ）
-  deleteTag: async (id: string) => {
-    const response = await apiClient.delete(`/tags/${id}`)
+  // カテゴリー別投稿取得
+  getPostsByCategory: async (categoryId: string, params: {
+    page?: number
+    limit?: number
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
+  } = {}) => {
+    const response = await apiClient.get(`/categories/${categoryId}/posts`, { params })
     return response.data
   },
 }
@@ -287,10 +266,10 @@ export const tagsApi = {
 // ファイルアップロード関連のAPI
 export const uploadApi = {
   // 単一ファイルアップロード
-  uploadSingle: async (file: File) => {
+  uploadFile: async (file: File) => {
     const formData = new FormData()
-    formData.append('image', file)
-
+    formData.append('file', file)
+    
     const response = await apiClient.post('/upload/single', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -300,12 +279,12 @@ export const uploadApi = {
   },
 
   // 複数ファイルアップロード
-  uploadMultiple: async (files: File[]) => {
+  uploadMultipleFiles: async (files: File[]) => {
     const formData = new FormData()
     files.forEach((file) => {
-      formData.append('images', file)
+      formData.append('files', file)
     })
-
+    
     const response = await apiClient.post('/upload/multiple', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -319,19 +298,97 @@ export const uploadApi = {
     const response = await apiClient.delete(`/upload/${filename}`)
     return response.data
   },
+
+  // アップロード済みファイル一覧
+  getUploadedFiles: async () => {
+    const response = await apiClient.get('/upload/files')
+    return response.data
+  },
 }
 
-// 外部API関連
-export const externalApi = {
-  // 天気情報取得
-  getWeather: async (city: string) => {
-    const response = await apiClient.get(`/posts/weather?city=${encodeURIComponent(city)}`)
+// 天気関連のAPI
+export const weatherApi = {
+  // 現在の天気取得
+  getCurrentWeather: async (city: string) => {
+    const response = await apiClient.get(`/weather/current?city=${encodeURIComponent(city)}`)
     return response.data
   },
 
+  // 天気予報取得
+  getWeatherForecast: async (city: string, days: number = 5) => {
+    const response = await apiClient.get(`/weather/forecast?city=${encodeURIComponent(city)}&days=${days}`)
+    return response.data
+  },
+}
+
+// 画像関連のAPI
+export const imageApi = {
   // 関連画像検索
-  searchImages: async (query: string) => {
-    const response = await apiClient.get(`/posts/images?query=${encodeURIComponent(query)}`)
+  searchImage: async (query: string, count: number = 10) => {
+    const response = await apiClient.get(`/images/search?query=${encodeURIComponent(query)}&count=${count}`)
+    return response.data
+  },
+
+  // ランダム画像取得
+  getRandomImage: async (category?: string) => {
+    const params = category ? { category } : {}
+    const response = await apiClient.get('/images/random', { params })
+    return response.data
+  },
+}
+
+// 統計関連のAPI
+export const statsApi = {
+  // 全体統計取得
+  getOverallStats: async () => {
+    const response = await apiClient.get('/stats/overall')
+    return response.data
+  },
+
+  // ユーザー統計取得
+  getUserStats: async (userId: string) => {
+    const response = await apiClient.get(`/stats/user/${userId}`)
+    return response.data
+  },
+
+  // カテゴリー統計取得
+  getCategoryStats: async () => {
+    const response = await apiClient.get('/stats/categories')
+    return response.data
+  },
+}
+
+// 通知関連のAPI
+export const notificationApi = {
+  // 通知一覧取得
+  getNotifications: async (params: {
+    page?: number
+    limit?: number
+    unreadOnly?: boolean
+  } = {}) => {
+    const response = await apiClient.get('/notifications', { params })
+    return response.data
+  },
+
+  // 通知を既読にする
+  markAsRead: async (notificationId: string) => {
+    const response = await apiClient.patch(`/notifications/${notificationId}/read`)
+    return response.data
+  },
+
+  // すべての通知を既読にする
+  markAllAsRead: async () => {
+    const response = await apiClient.patch('/notifications/mark-all-read')
+    return response.data
+  },
+
+  // 通知設定更新
+  updateNotificationSettings: async (settings: {
+    emailNotifications?: boolean
+    commentNotifications?: boolean
+    systemNotifications?: boolean
+  }) => {
+    const response = await apiClient.put('/notifications/settings', settings)
     return response.data
   },
 }

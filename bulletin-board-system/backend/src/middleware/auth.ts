@@ -29,7 +29,7 @@ export const authenticateToken = async (
     }
 
     // JWTトークンの検証
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
     
     // ユーザーの存在確認
     const user = await prisma.user.findUnique({
@@ -135,7 +135,7 @@ export const optionalAuth = async (
     }
 
     // JWTトークンの検証
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
     
     // ユーザーの存在確認
     const user = await prisma.user.findUnique({
