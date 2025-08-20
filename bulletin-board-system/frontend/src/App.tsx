@@ -26,8 +26,8 @@ const queryClient = new QueryClient({
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Router>
+      <Router>
+        <AuthProvider>
           <div className="App">
             <Routes>
               {/* 認証不要のページ */}
@@ -71,8 +71,8 @@ const App: React.FC = () => {
               }}
             />
           </div>
-        </Router>
-      </AuthProvider>
+        </AuthProvider>
+      </Router>
     </QueryClientProvider>
   )
 }
