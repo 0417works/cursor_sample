@@ -1,147 +1,128 @@
 import axios from 'axios';
 
+interface WeatherData {
+  city: string;
+  temperature: number;
+  description: string;
+  humidity: number;
+  windSpeed: number;
+  icon: string;
+}
+
+interface ForecastData {
+  city: string;
+  forecasts: Array<{
+    date: string;
+    temperature: number;
+    description: string;
+    icon: string;
+  }>;
+}
+
 // OpenWeatherMap APIの設定
-const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
-const WEATHER_BASE_URL = 'https://api.openweathermap.org/data/2.5';
+const API_KEY = process.env.OPENWEATHER_API_KEY || 'demo-key';
+const BASE_URL = 'https://api.openweathermap.org/data/2.5';
 
-// デフォルトの都市（東京）
-const DEFAULT_CITY = 'Tokyo';
-const DEFAULT_COUNTRY_CODE = 'JP';
-
-// 天気情報の取得
-export const getWeatherInfo = async (city?: string, countryCode?: string): Promise<string | null> => {
+// 現在の天気を取得
+export const getCurrentWeather = async (city: string): Promise<WeatherData> => {
   try {
-    if (!WEATHER_API_KEY) {
-      console.warn('Weather API key not configured');
-      return null;
+    // APIキーがデモの場合はモックデータを返す
+    if (API_KEY === 'demo-key') {
+      return {
+        city,
+        temperature: 22,
+        description: '晴れ',
+        humidity: 65,
+        windSpeed: 3.2,
+        icon: '01d'
+      };
     }
 
-    const targetCity = city || DEFAULT_CITY;
-    const targetCountryCode = countryCode || DEFAULT_COUNTRY_CODE;
-
-    // 現在の天気情報を取得
-    const response = await axios.get(`${WEATHER_BASE_URL}/weather`, {
+    const response = await axios.get(`${BASE_URL}/weather`, {
       params: {
-        q: `${targetCity},${targetCountryCode}`,
-        appid: WEATHER_API_KEY,
-        units: 'metric', // 摂氏温度
-        lang: 'ja' // 日本語
-      },
-      timeout: 5000 // 5秒のタイムアウト
-    });
-
-    const weatherData = response.data;
-    
-    // 天気情報の整形
-    const temperature = Math.round(weatherData.main.temp);
-    const description = weatherData.weather[0].description;
-    const humidity = weatherData.main.humidity;
-    const windSpeed = Math.round(weatherData.wind.speed * 3.6); // m/s から km/h に変換
-
-    // 絵文字の選択
-    const weatherEmoji = getWeatherEmoji(weatherData.weather[0].id);
-    
-    return `${weatherEmoji} ${targetCity}: ${temperature}°C, ${description}, 湿度: ${humidity}%, 風速: ${windSpeed}km/h`;
-
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401) {
-        console.error('Weather API: Invalid API key');
-      } else if (error.response?.status === 404) {
-        console.error('Weather API: City not found');
-      } else if (error.code === 'ECONNABORTED') {
-        console.error('Weather API: Request timeout');
-      } else {
-        console.error('Weather API error:', error.response?.status, error.response?.data);
-      }
-    } else {
-      console.error('Weather service error:', error);
-    }
-    return null;
-  }
-};
-
-// 天気IDに基づいて絵文字を選択
-const getWeatherEmoji = (weatherId: number): string => {
-  if (weatherId >= 200 && weatherId < 300) return '⛈️'; // 雷雨
-  if (weatherId >= 300 && weatherId < 400) return '🌧️'; // 霧雨
-  if (weatherId >= 500 && weatherId < 600) return '🌧️'; // 雨
-  if (weatherId >= 600 && weatherId < 700) return '❄️'; // 雪
-  if (weatherId >= 700 && weatherId < 800) return '🌫️'; // 霧
-  if (weatherId === 800) return '☀️'; // 晴れ
-  if (weatherId === 801) return '🌤️'; // 晴れ時々曇り
-  if (weatherId === 802) return '⛅'; // 晴れ曇り
-  if (weatherId === 803) return '🌥️'; // 曇り時々晴れ
-  if (weatherId === 804) return '☁️'; // 曇り
-  return '🌤️'; // デフォルト
-};
-
-// 複数都市の天気情報を取得
-export const getMultipleCitiesWeather = async (cities: Array<{city: string, countryCode: string}>): Promise<Array<{city: string, weather: string | null}>> => {
-  try {
-    const weatherPromises = cities.map(async ({ city, countryCode }) => {
-      const weather = await getWeatherInfo(city, countryCode);
-      return { city, weather };
-    });
-
-    const results = await Promise.allSettled(weatherPromises);
-    
-    return results.map((result, index) => {
-      if (result.status === 'fulfilled') {
-        return result.value;
-      } else {
-        console.error(`Failed to get weather for ${cities[index].city}:`, result.reason);
-        return { city: cities[index].city, weather: null };
-      }
-    });
-
-  } catch (error) {
-    console.error('Multiple cities weather error:', error);
-    return cities.map(({ city }) => ({ city, weather: null }));
-  }
-};
-
-// 天気予報の取得（5日間）
-export const getWeatherForecast = async (city?: string, countryCode?: string): Promise<any | null> => {
-  try {
-    if (!WEATHER_API_KEY) {
-      console.warn('Weather API key not configured');
-      return null;
-    }
-
-    const targetCity = city || DEFAULT_CITY;
-    const targetCountryCode = countryCode || DEFAULT_COUNTRY_CODE;
-
-    const response = await axios.get(`${WEATHER_BASE_URL}/forecast`, {
-      params: {
-        q: `${targetCity},${targetCountryCode}`,
-        appid: WEATHER_API_KEY,
+        q: city,
+        appid: API_KEY,
         units: 'metric',
         lang: 'ja'
-      },
-      timeout: 10000
+      }
     });
 
-    return response.data;
-
+    const data = response.data;
+    return {
+      city: data.name,
+      temperature: Math.round(data.main.temp),
+      description: data.weather[0].description,
+      humidity: data.main.humidity,
+      windSpeed: data.wind.speed,
+      icon: data.weather[0].icon
+    };
   } catch (error) {
-    console.error('Weather forecast error:', error);
-    return null;
+    console.error('Weather API error:', error);
+    throw new Error('天気情報の取得に失敗しました');
   }
 };
 
-// 天気サービスのヘルスチェック
-export const checkWeatherServiceHealth = async (): Promise<boolean> => {
+// 天気予報を取得
+export const getForecast = async (city: string, days: number = 5): Promise<ForecastData> => {
   try {
-    if (!WEATHER_API_KEY) {
-      return false;
+    // APIキーがデモの場合はモックデータを返す
+    if (API_KEY === 'demo-key') {
+      const mockForecasts = [];
+      for (let i = 0; i < days; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() + i);
+        mockForecasts.push({
+          date: date.toISOString().split('T')[0],
+          temperature: 20 + Math.floor(Math.random() * 10),
+          description: ['晴れ', '曇り', '雨'][Math.floor(Math.random() * 3)],
+          icon: '01d'
+        });
+      }
+      
+      return {
+        city,
+        forecasts: mockForecasts
+      };
     }
 
-    const weather = await getWeatherInfo('Tokyo', 'JP');
-    return weather !== null;
+    const response = await axios.get(`${BASE_URL}/forecast`, {
+      params: {
+        q: city,
+        appid: API_KEY,
+        units: 'metric',
+        lang: 'ja',
+        cnt: days * 8 // 3時間ごとのデータ
+      }
+    });
 
+    const data = response.data;
+    const forecasts = data.list
+      .filter((item: any, index: number) => index % 8 === 0) // 24時間ごと
+      .slice(0, days)
+      .map((item: any) => ({
+        date: new Date(item.dt * 1000).toISOString().split('T')[0],
+        temperature: Math.round(item.main.temp),
+        description: item.weather[0].description,
+        icon: item.weather[0].icon
+      }));
+
+    return {
+      city: data.city.name,
+      forecasts
+    };
   } catch (error) {
-    console.error('Weather service health check failed:', error);
+    console.error('Weather forecast API error:', error);
+    throw new Error('天気予報の取得に失敗しました');
+  }
+};
+
+// 天気サービスのテスト
+export const testWeatherService = async (): Promise<boolean> => {
+  try {
+    const weather = await getCurrentWeather('Tokyo');
+    return !!weather.city;
+  } catch (error) {
+    console.error('Weather service test failed:', error);
     return false;
   }
 };

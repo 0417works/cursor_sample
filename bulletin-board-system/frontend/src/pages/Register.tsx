@@ -2,8 +2,8 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
-import { Input } from '../components/ui/Input'
-import { Button } from '../components/ui/Button'
+import Input from '../components/ui/Input'
+import Button from '../components/ui/Button'
 import { Mail, Lock, User, Eye, EyeOff, CheckCircle } from 'lucide-react'
 
 const Register: React.FC = () => {

@@ -6,7 +6,6 @@ import {
   X, 
   User, 
   LogOut, 
-  Settings, 
   Plus,
   Search,
   Bell

@@ -9,7 +9,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated } = useAuth()
   const location = useLocation()
 
   // 認証が必要なページのパス

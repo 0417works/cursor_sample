@@ -2,17 +2,17 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
-import { Button } from '../components/ui/Button'
+import Button from '../components/ui/Button'
 import { postsApi, categoriesApi } from '../services/api'
 import { 
-  TrendingUp, 
   Users, 
   FileText, 
   MessageSquare, 
   Eye, 
   Clock,
   User,
-  Tag
+  Tag,
+  TrendingUp
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ja } from 'date-fns/locale'

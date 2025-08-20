@@ -1,235 +1,180 @@
 import axios from 'axios';
 
-// Unsplash APIの設定
-const UNSPLASH_API_KEY = process.env.UNSPLASH_API_KEY;
-const UNSPLASH_BASE_URL = 'https://api.unsplash.com';
-
-// 画像検索の結果型定義
-export interface UnsplashImage {
+interface ImageData {
   id: string;
-  urls: {
-    small: string;
-    regular: string;
-    full: string;
-  };
-  alt_description: string;
-  description: string;
-  user: {
-    name: string;
-    username: string;
-  };
-  links: {
-    html: string;
-  };
+  url: string;
+  alt: string;
+  photographer: string;
+  width: number;
+  height: number;
 }
 
-// 画像検索の実行
-export const searchRelatedImages = async (query: string, count: number = 5): Promise<UnsplashImage[] | null> => {
+interface ImageSearchResult {
+  images: ImageData[];
+  total: number;
+  page: number;
+}
+
+// Unsplash APIの設定
+const API_KEY = process.env.UNSPLASH_API_KEY || 'demo-key';
+const BASE_URL = 'https://api.unsplash.com';
+
+// 画像検索
+export const searchImages = async (query: string, count: number = 10): Promise<ImageSearchResult> => {
   try {
-    if (!UNSPLASH_API_KEY) {
-      console.warn('Unsplash API key not configured');
-      return null;
+    // APIキーがデモの場合はモックデータを返す
+    if (API_KEY === 'demo-key') {
+      const mockImages: ImageData[] = [];
+      for (let i = 0; i < count; i++) {
+        mockImages.push({
+          id: `mock-${i}`,
+          url: `https://picsum.photos/400/300?random=${i}`,
+          alt: `${query}の画像${i + 1}`,
+          photographer: 'Demo User',
+          width: 400,
+          height: 300
+        });
+      }
+      
+      return {
+        images: mockImages,
+        total: count,
+        page: 1
+      };
     }
 
-    // 検索クエリの最適化
-    const searchQuery = optimizeSearchQuery(query);
-    
-    const response = await axios.get(`${UNSPLASH_BASE_URL}/search/photos`, {
-      params: {
-        query: searchQuery,
-        per_page: count,
-        orientation: 'landscape', // 横長の画像を優先
-        order_by: 'relevant' // 関連性の高い順
-      },
+    const response = await axios.get(`${BASE_URL}/search/photos`, {
       headers: {
-        'Authorization': `Client-ID ${UNSPLASH_API_KEY}`
+        'Authorization': `Client-ID ${API_KEY}`
       },
-      timeout: 10000 // 10秒のタイムアウト
+      params: {
+        query,
+        per_page: count,
+        page: 1
+      }
     });
 
-    const images = response.data.results.map((image: any) => ({
-      id: image.id,
-      urls: {
-        small: image.urls.small,
-        regular: image.urls.regular,
-        full: image.urls.full
-      },
-      alt_description: image.alt_description || 'No description available',
-      description: image.description || 'No description available',
-      user: {
-        name: image.user.name,
-        username: image.user.username
-      },
-      links: {
-        html: image.links.html
-      }
+    const data = response.data;
+    const images: ImageData[] = data.results.map((photo: any) => ({
+      id: photo.id,
+      url: photo.urls.regular,
+      alt: photo.alt_description || query,
+      photographer: photo.user.name,
+      width: photo.width,
+      height: photo.height
     }));
 
-    return images;
-
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401) {
-        console.error('Unsplash API: Invalid API key');
-      } else if (error.response?.status === 403) {
-        console.error('Unsplash API: Rate limit exceeded');
-      } else if (error.code === 'ECONNABORTED') {
-        console.error('Unsplash API: Request timeout');
-      } else {
-        console.error('Unsplash API error:', error.response?.status, error.response?.data);
-      }
-    } else {
-      console.error('Image service error:', error);
-    }
-    return null;
-  }
-};
-
-// 検索クエリの最適化
-const optimizeSearchQuery = (query: string): string => {
-  // 日本語のキーワードを英語に変換（基本的な変換）
-  const japaneseToEnglish: { [key: string]: string } = {
-    '天気': 'weather',
-    '雨': 'rain',
-    '雪': 'snow',
-    '晴れ': 'sunny',
-    '曇り': 'cloudy',
-    '春': 'spring',
-    '夏': 'summer',
-    '秋': 'autumn',
-    '冬': 'winter',
-    '花': 'flower',
-    '桜': 'cherry blossom',
-    '紅葉': 'autumn leaves',
-    '海': 'ocean',
-    '山': 'mountain',
-    '空': 'sky',
-    '夕日': 'sunset',
-    '朝日': 'sunrise',
-    '夜景': 'night view',
-    '都市': 'city',
-    '自然': 'nature'
-  };
-
-  let optimizedQuery = query;
-
-  // 日本語キーワードの置換
-  Object.entries(japaneseToEnglish).forEach(([japanese, english]) => {
-    optimizedQuery = optimizedQuery.replace(new RegExp(japanese, 'g'), english);
-  });
-
-  // 特殊文字の除去
-  optimizedQuery = optimizedQuery.replace(/[^\w\s]/g, ' ');
-
-  // 複数のスペースを単一のスペースに変換
-  optimizedQuery = optimizedQuery.replace(/\s+/g, ' ').trim();
-
-  // 空文字列の場合はデフォルトクエリを使用
-  if (!optimizedQuery) {
-    optimizedQuery = 'nature landscape';
-  }
-
-  return optimizedQuery;
-};
-
-// ランダム画像の取得
-export const getRandomImage = async (query?: string): Promise<UnsplashImage | null> => {
-  try {
-    if (!UNSPLASH_API_KEY) {
-      console.warn('Unsplash API key not configured');
-      return null;
-    }
-
-    const searchQuery = query ? optimizeSearchQuery(query) : 'nature';
-
-    const response = await axios.get(`${UNSPLASH_BASE_URL}/photos/random`, {
-      params: {
-        query: searchQuery,
-        orientation: 'landscape'
-      },
-      headers: {
-        'Authorization': `Client-ID ${UNSPLASH_API_KEY}`
-      },
-      timeout: 10000
-    });
-
-    const image = response.data;
-    
     return {
-      id: image.id,
-      urls: {
-        small: image.urls.small,
-        regular: image.urls.regular,
-        full: image.urls.full
-      },
-      alt_description: image.alt_description || 'No description available',
-      description: image.description || 'No description available',
-      user: {
-        name: image.user.name,
-        username: image.user.username
-      },
-      links: {
-        html: image.links.html
-      }
+      images,
+      total: data.total,
+      page: 1
     };
-
   } catch (error) {
-    console.error('Get random image error:', error);
-    return null;
+    console.error('Image search API error:', error);
+    throw new Error('画像検索に失敗しました');
   }
 };
 
-// 画像の統計情報取得
-export const getImageStats = async (imageId: string): Promise<any | null> => {
+// ランダム画像取得
+export const getRandomImage = async (category?: string): Promise<ImageData> => {
   try {
-    if (!UNSPLASH_API_KEY) {
-      console.warn('Unsplash API key not configured');
-      return null;
+    // APIキーがデモの場合はモックデータを返す
+    if (API_KEY === 'demo-key') {
+      return {
+        id: 'mock-random',
+        url: `https://picsum.photos/800/600?random=${Date.now()}`,
+        alt: category ? `${category}の画像` : 'ランダム画像',
+        photographer: 'Demo User',
+        width: 800,
+        height: 600
+      };
     }
 
-    const response = await axios.get(`${UNSPLASH_BASE_URL}/photos/${imageId}/statistics`, {
+    const response = await axios.get(`${BASE_URL}/photos/random`, {
       headers: {
-        'Authorization': `Client-ID ${UNSPLASH_API_KEY}`
+        'Authorization': `Client-ID ${API_KEY}`
       },
-      timeout: 10000
+      params: category ? { query: category } : {}
     });
 
-    return response.data;
-
+    const photo = response.data;
+    return {
+      id: photo.id,
+      url: photo.urls.regular,
+      alt: photo.alt_description || 'ランダム画像',
+      photographer: photo.user.name,
+      width: photo.width,
+      height: photo.height
+    };
   } catch (error) {
-    console.error('Get image stats error:', error);
-    return null;
+    console.error('Random image API error:', error);
+    throw new Error('ランダム画像の取得に失敗しました');
   }
 };
 
-// 画像サービスのヘルスチェック
-export const checkImageServiceHealth = async (): Promise<boolean> => {
+// カテゴリー別画像取得
+export const getImagesByCategory = async (category: string, count: number = 10): Promise<ImageSearchResult> => {
   try {
-    if (!UNSPLASH_API_KEY) {
-      return false;
+    // APIキーがデモの場合はモックデータを返す
+    if (API_KEY === 'demo-key') {
+      const mockImages: ImageData[] = [];
+      for (let i = 0; i < count; i++) {
+        mockImages.push({
+          id: `mock-${category}-${i}`,
+          url: `https://picsum.photos/400/300?random=${i + 100}`,
+          alt: `${category}の画像${i + 1}`,
+          photographer: 'Demo User',
+          width: 400,
+          height: 300
+        });
+      }
+      
+      return {
+        images: mockImages,
+        total: count,
+        page: 1
+      };
     }
 
-    const images = await searchRelatedImages('nature', 1);
-    return images !== null && images.length > 0;
+    const response = await axios.get(`${BASE_URL}/search/photos`, {
+      headers: {
+        'Authorization': `Client-ID ${API_KEY}`
+      },
+      params: {
+        query: category,
+        per_page: count,
+        page: 1
+      }
+    });
 
+    const data = response.data;
+    const images: ImageData[] = data.results.map((photo: any) => ({
+      id: photo.id,
+      url: photo.urls.regular,
+      alt: photo.alt_description || category,
+      photographer: photo.user.name,
+      width: photo.width,
+      height: photo.height
+    }));
+
+    return {
+      images,
+      total: data.total,
+      page: 1
+    };
   } catch (error) {
-    console.error('Image service health check failed:', error);
-    return false;
+    console.error('Category images API error:', error);
+    throw new Error('カテゴリー画像の取得に失敗しました');
   }
 };
 
-// 画像のダウンロード（Unsplashの利用規約に従う）
-export const downloadImage = async (imageUrl: string): Promise<Buffer | null> => {
+// 画像サービスのテスト
+export const testImageService = async (): Promise<boolean> => {
   try {
-    const response = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      timeout: 30000 // 画像ダウンロードは30秒のタイムアウト
-    });
-
-    return Buffer.from(response.data);
-
+    const image = await getRandomImage();
+    return !!image.url;
   } catch (error) {
-    console.error('Image download error:', error);
-    return null;
+    console.error('Image service test failed:', error);
+    return false;
   }
 };

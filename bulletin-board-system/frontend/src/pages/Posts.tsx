@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useQuery } from 'react-query'
 import { useSearchParams, Link } from 'react-router-dom'
-import { Card, CardHeader, CardBody } from '../components/ui/Card'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import { Card, CardBody } from '../components/ui/Card'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
 import { postsApi, categoriesApi } from '../services/api'
 import { 
   Search, 
@@ -15,8 +15,6 @@ import {
   Clock,
   User,
   Tag,
-  Calendar,
-  TrendingUp,
   FileText
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
@@ -184,14 +182,11 @@ const Posts: React.FC = () => {
                         onChange={(e) => handleSortChange(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       >
-                        {sortOptions.map((option) => {
-                          const Icon = option.icon
-                          return (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          )
-                        })}
+                        {sortOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
 

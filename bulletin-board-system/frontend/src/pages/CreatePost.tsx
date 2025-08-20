@@ -1,47 +1,35 @@
-import React, { useState, useRef } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery } from 'react-query'
-import { useAuth } from '../contexts/AuthContext'
+import { useMutation, useQuery, useQueryClient } from 'react-query'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
 import { postsApi, categoriesApi, uploadApi } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import { 
-  ArrowLeft, 
-  Upload, 
-  X, 
-  Eye, 
-  EyeOff, 
-  Save, 
-  Image as ImageIcon,
-  FileText,
-  Tag
+  FileText, 
+  Image as ImageIcon, 
+  X
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const CreatePost: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // フォーム状態
+  const queryClient = useQueryClient()
+  
   const [formData, setFormData] = useState({
     title: '',
     content: '',
     categoryId: '',
     isPublished: true
   })
-
-  // 画像関連の状態
+  const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
-
-  // UI状態
-  const [showPreview, setShowPreview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // カテゴリーデータの取得
+  // カテゴリーの取得
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery(
     'categories',
     categoriesApi.getCategories
@@ -51,12 +39,14 @@ const CreatePost: React.FC = () => {
   const createPostMutation = useMutation(
     (postData: any) => postsApi.createPost(postData),
     {
-      onSuccess: (data) => {
+      onSuccess: () => {
+        queryClient.invalidateQueries('posts')
         toast.success('投稿を作成しました')
-        navigate(`/posts/${data.id}`)
+        navigate('/posts')
       },
       onError: (error: any) => {
-        toast.error(error.response?.data?.error || '投稿の作成に失敗しました')
+        const message = error.response?.data?.error || '投稿の作成に失敗しました'
+        toast.error(message)
       }
     }
   )
@@ -66,21 +56,68 @@ const CreatePost: React.FC = () => {
     (file: File) => uploadApi.uploadFile(file),
     {
       onSuccess: (data) => {
-        setUploadedImageUrl(data.url)
+        setFormData(prev => ({ ...prev, imageUrl: data.url }))
         toast.success('画像をアップロードしました')
       },
-      onError: (error: any) => {
+      onError: () => {
         toast.error('画像のアップロードに失敗しました')
       }
     }
   )
 
-  // フォーム入力処理
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+  // フォームバリデーション
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {}
+
+    if (!formData.title.trim()) {
+      newErrors.title = 'タイトルを入力してください'
+    } else if (formData.title.length > 100) {
+      newErrors.title = 'タイトルは100文字以下で入力してください'
+    }
+
+    if (!formData.content.trim()) {
+      newErrors.content = '内容を入力してください'
+    } else if (formData.content.length > 10000) {
+      newErrors.content = '内容は10000文字以下で入力してください'
+    }
+
+    if (!formData.categoryId) {
+      newErrors.categoryId = 'カテゴリーを選択してください'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
-  // 画像選択処理
+  // フォーム送信
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validateForm()) {
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      let imageUrl = null
+      
+      // 画像がある場合は先にアップロード
+      if (selectedImage) {
+        const uploadResult = await uploadImageMutation.mutateAsync(selectedImage)
+        imageUrl = uploadResult.url
+      }
+
+      // 投稿を作成
+      await createPostMutation.mutateAsync({
+        ...formData,
+        imageUrl
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // 画像選択
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -107,330 +144,217 @@ const CreatePost: React.FC = () => {
     }
   }
 
-  // 画像削除処理
-  const handleRemoveImage = () => {
+  // 画像削除
+  const removeImage = () => {
     setSelectedImage(null)
     setImagePreview(null)
-    setUploadedImageUrl(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+    setFormData(prev => ({ ...prev, imageUrl: undefined }))
+  }
+
+  // 入力値変更
+  const handleInputChange = (field: string, value: string | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    
+    // エラーをクリア
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }))
     }
   }
 
-  // 画像アップロード処理
-  const handleUploadImage = async () => {
-    if (!selectedImage) return
-
-    setIsSubmitting(true)
-    try {
-      await uploadImageMutation.mutateAsync(selectedImage)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  // フォーム送信処理
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!formData.title.trim()) {
-      toast.error('タイトルを入力してください')
-      return
-    }
-
-    if (!formData.content.trim()) {
-      toast.error('内容を入力してください')
-      return
-    }
-
-    if (!formData.categoryId) {
-      toast.error('カテゴリーを選択してください')
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      const postData = {
-        ...formData,
-        imageUrl: uploadedImageUrl
-      }
-      await createPostMutation.mutateAsync(postData)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  // プレビューデータ
-  const previewData = {
-    ...formData,
-    imageUrl: imagePreview || uploadedImageUrl,
-    author: user,
-    createdAt: new Date(),
-    viewCount: 0,
-    _count: { comments: 0 }
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">アクセス制限</h2>
+          <p className="text-gray-600 mb-6">投稿を作成するにはログインが必要です。</p>
+          <Button onClick={() => navigate('/login')}>
+            ログインする
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* ヘッダー */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/posts')}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                戻る
-              </Button>
-              <h1 className="text-3xl font-bold text-gray-900">投稿を作成</h1>
-            </div>
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowPreview(!showPreview)}
-              >
-                {showPreview ? (
-                  <>
-                    <EyeOff className="w-4 h-4 mr-2" />
-                    編集
-                  </>
-                ) : (
-                  <>
-                    <Eye className="w-4 h-4 mr-2" />
-                    プレビュー
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900">新しい投稿を作成</h1>
+          <p className="text-gray-600 mt-2">
+            あなたの考えや経験を共有しましょう
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* 投稿フォーム */}
-          <div className={showPreview ? 'hidden lg:block' : ''}>
-            <Card>
-              <CardHeader>
-                <h2 className="text-xl font-semibold text-gray-900">投稿情報</h2>
-              </CardHeader>
-              <CardBody>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* タイトル */}
-                  <Input
-                    label="タイトル"
-                    placeholder="投稿のタイトルを入力してください"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
-                    required
-                    maxLength={100}
-                  />
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+              <FileText className="w-5 h-5 mr-2" />
+              投稿情報
+            </h2>
+          </CardHeader>
+          <CardBody>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* タイトル */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  タイトル *
+                </label>
+                <Input
+                  type="text"
+                  placeholder="投稿のタイトルを入力してください"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  error={errors.title}
+                  maxLength={100}
+                  required
+                />
+                <div className="mt-1 text-sm text-gray-500">
+                  {formData.title.length}/100文字
+                </div>
+              </div>
 
-                  {/* カテゴリー */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      カテゴリー <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.categoryId}
-                      onChange={(e) => handleInputChange('categoryId', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      required
-                    >
-                      <option value="">カテゴリーを選択</option>
-                      {categoriesData?.categories?.map((category: any) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              {/* カテゴリー */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  カテゴリー *
+                </label>
+                <select
+                  value={formData.categoryId}
+                  onChange={(e) => handleInputChange('categoryId', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-colors ${
+                    errors.categoryId
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
+                  required
+                >
+                  <option value="">カテゴリーを選択してください</option>
+                  {categoriesLoading ? (
+                    <option disabled>読み込み中...</option>
+                  ) : (
+                    categoriesData?.categories?.map((category: any) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {errors.categoryId && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.categoryId}
+                  </p>
+                )}
+              </div>
 
-                  {/* 内容 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      内容 <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={formData.content}
-                      onChange={(e) => handleInputChange('content', e.target.value)}
-                      rows={8}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-vertical"
-                      placeholder="投稿の内容を入力してください"
-                      required
+              {/* 内容 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  内容 *
+                </label>
+                <textarea
+                  rows={8}
+                  placeholder="投稿の内容を入力してください"
+                  value={formData.content}
+                  onChange={(e) => handleInputChange('content', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm transition-colors ${
+                    errors.content
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
+                  maxLength={10000}
+                  required
+                />
+                {errors.content && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.content}
+                  </p>
+                )}
+                <div className="mt-1 text-sm text-gray-500">
+                  {formData.content.length}/10000文字
+                </div>
+              </div>
+
+              {/* 画像アップロード */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  画像（オプション）
+                </label>
+                
+                {imagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="プレビュー"
+                      className="w-full max-h-64 object-cover rounded-lg"
                     />
-                  </div>
-
-                  {/* 画像アップロード */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      画像（オプション）
-                    </label>
-                    
-                    {!selectedImage && !uploadedImageUrl ? (
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageSelect}
-                          className="hidden"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="w-4 h-4 mr-2" />
-                          画像を選択
-                        </Button>
-                        <p className="text-sm text-gray-500 mt-2">
-                          PNG, JPG, GIF (最大5MB)
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {/* 画像プレビュー */}
-                        <div className="relative">
-                          <img
-                            src={imagePreview || uploadedImageUrl || ''}
-                            alt="Preview"
-                            className="w-full h-48 object-cover rounded-lg"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleRemoveImage}
-                            className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        {/* アップロードボタン */}
-                        {selectedImage && !uploadedImageUrl && (
-                          <Button
-                            type="button"
-                            onClick={handleUploadImage}
-                            loading={isSubmitting}
-                            className="w-full"
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            画像をアップロード
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 公開設定 */}
-                  <div className="flex items-center">
-                    <input
-                      id="isPublished"
-                      type="checkbox"
-                      checked={formData.isPublished}
-                      onChange={(e) => handleInputChange('isPublished', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="isPublished" className="ml-2 block text-sm text-gray-900">
-                      投稿を公開する
-                    </label>
-                  </div>
-
-                  {/* 送信ボタン */}
-                  <div className="flex justify-end space-x-3">
-                    <Button
+                    <button
                       type="button"
-                      variant="outline"
-                      onClick={() => navigate('/posts')}
+                      onClick={removeImage}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                     >
-                      キャンセル
-                    </Button>
-                    <Button
-                      type="submit"
-                      loading={isSubmitting}
-                      disabled={isSubmitting}
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      投稿を作成
-                    </Button>
-                  </div>
-                </form>
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* プレビュー */}
-          <div className={showPreview ? '' : 'hidden lg:block'}>
-            <Card>
-              <CardHeader>
-                <h2 className="text-xl font-semibold text-gray-900">プレビュー</h2>
-              </CardHeader>
-              <CardBody>
-                {formData.title || formData.content ? (
-                  <div className="space-y-4">
-                    {/* タイトル */}
-                    {formData.title && (
-                      <h1 className="text-2xl font-bold text-gray-900">
-                        {formData.title}
-                      </h1>
-                    )}
-
-                    {/* メタ情報 */}
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <div className="flex items-center space-x-1">
-                        <FileText className="w-4 h-4" />
-                        <span>{user?.username}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Tag className="w-4 h-4" />
-                        <span>
-                          {categoriesData?.categories?.find(c => c.id === formData.categoryId)?.name || '未選択'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 画像 */}
-                    {(imagePreview || uploadedImageUrl) && (
-                      <div className="mb-4">
-                        <img
-                          src={imagePreview || uploadedImageUrl || ''}
-                          alt="Preview"
-                          className="w-full h-48 object-cover rounded-lg"
-                        />
-                      </div>
-                    )}
-
-                    {/* 内容 */}
-                    {formData.content && (
-                      <div className="prose max-w-none">
-                        <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                          {formData.content}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* 公開状態 */}
-                    <div className="pt-4 border-t border-gray-200">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        formData.isPublished
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {formData.isPublished ? '公開' : '下書き'}
-                      </span>
-                    </div>
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                    <p>タイトルと内容を入力するとプレビューが表示されます</p>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label
+                      htmlFor="image-upload"
+                      className="cursor-pointer flex flex-col items-center"
+                    >
+                      <ImageIcon className="w-12 h-12 text-gray-400 mb-2" />
+                      <span className="text-sm text-gray-600">
+                        画像をクリックして選択、またはドラッグ&ドロップ
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">
+                        PNG, JPG, GIF up to 5MB
+                      </span>
+                    </label>
                   </div>
                 )}
-              </CardBody>
-            </Card>
-          </div>
-        </div>
+              </div>
+
+              {/* 公開設定 */}
+              <div className="flex items-center">
+                <input
+                  id="is-published"
+                  type="checkbox"
+                  checked={formData.isPublished}
+                  onChange={(e) => handleInputChange('isPublished', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="is-published" className="ml-2 block text-sm text-gray-900">
+                  投稿を公開する
+                </label>
+              </div>
+
+              {/* 送信ボタン */}
+              <div className="flex justify-end space-x-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/posts')}
+                  disabled={isSubmitting}
+                >
+                  キャンセル
+                </Button>
+                <Button
+                  type="submit"
+                  loading={isSubmitting}
+                  disabled={isSubmitting}
+                >
+                  {formData.isPublished ? '投稿を公開' : '下書きとして保存'}
+                </Button>
+              </div>
+            </form>
+          </CardBody>
+        </Card>
       </div>
     </div>
   )

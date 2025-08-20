@@ -1,14 +1,14 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
-import { Input } from '../components/ui/Input'
-import { Button } from '../components/ui/Button'
+import Input from '../components/ui/Input'
+import Button from '../components/ui/Button'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 const Login: React.FC = () => {
   const { login } = useAuth()
-  const navigate = useNavigate()
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''

@@ -10,6 +10,7 @@ interface User {
   role: string
   avatar?: string
   bio?: string
+  createdAt?: string
 }
 
 interface AuthContextType {
@@ -20,6 +21,7 @@ interface AuthContextType {
   register: (email: string, username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
+  updateUser: (data: Partial<User>) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -66,7 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true)
-      const response = await authApi.login(email, password)
+      const response = await authApi.login({ email, password })
       
       // トークンをローカルストレージに保存
       localStorage.setItem('accessToken', response.accessToken)
@@ -87,7 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (email: string, username: string, password: string) => {
     try {
       setIsLoading(true)
-      const response = await authApi.register(email, username, password)
+      await authApi.register({ email, username, password })
       
       // 登録成功後、自動的にログイン
       await login(email, password)
@@ -103,10 +105,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
-      const refreshToken = localStorage.getItem('refreshToken')
-      if (refreshToken) {
-        await authApi.logout(refreshToken)
-      }
+      await authApi.logout()
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
@@ -142,6 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     updateProfile,
+    updateUser: updateProfile, // updateProfileのエイリアス
   }
 
   return (
