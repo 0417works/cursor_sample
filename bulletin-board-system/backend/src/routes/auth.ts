@@ -365,4 +365,163 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
   }
 });
 
+// プロフィール更新
+router.put('/profile', [
+  authenticateToken,
+  body('username').optional().isLength({ min: 3, max: 20 }).matches(/^[a-zA-Z0-9_]+$/),
+  body('email').optional().isEmail().normalizeEmail(),
+  body('bio').optional().isLength({ max: 500 }),
+  body('avatar').optional().isURL()
+], async (req: AuthRequest, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: errors.array() 
+      });
+    }
+
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: 'Authentication required' 
+      });
+    }
+
+    const { username, email, bio, avatar } = req.body;
+
+    // ユーザー名の重複チェック（変更される場合）
+    if (username) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          username,
+          NOT: {
+            id: req.user.id
+          }
+        }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ 
+          error: 'Username already exists' 
+        });
+      }
+    }
+
+    // メールアドレスの重複チェック（変更される場合）
+    if (email) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email,
+          NOT: {
+            id: req.user.id
+          }
+        }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ 
+          error: 'Email already exists' 
+        });
+      }
+    }
+
+    // プロフィールの更新
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        username: username || undefined,
+        email: email || undefined,
+        bio: bio !== undefined ? bio : undefined,
+        avatar: avatar || undefined
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        avatar: true,
+        bio: true,
+        role: true,
+        createdAt: true
+      }
+    });
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// パスワード変更
+router.put('/password', [
+  authenticateToken,
+  body('currentPassword').isLength({ min: 1 }),
+  body('newPassword').isLength({ min: 6 })
+], async (req: AuthRequest, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: errors.array() 
+      });
+    }
+
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: 'Authentication required' 
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    // 現在のユーザー情報を取得
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { password: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ 
+        error: 'User not found' 
+      });
+    }
+
+    // 現在のパスワードの確認
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ 
+        error: 'Current password is incorrect' 
+      });
+    }
+
+    // 新しいパスワードのハッシュ化
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || '12');
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // パスワードの更新
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { password: hashedNewPassword }
+    });
+
+    res.json({
+      message: 'Password changed successfully'
+    });
+
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});
+
 export default router;

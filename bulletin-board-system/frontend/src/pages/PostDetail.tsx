@@ -177,10 +177,21 @@ const PostDetail: React.FC = () => {
                   <div className="flex items-center space-x-1">
                     <Clock className="w-4 h-4" />
                     <span>
-                      {formatDistanceToNow(new Date(post.createdAt), { 
-                        addSuffix: true, 
-                        locale: ja 
-                      })}
+                      {post.createdAt ? (
+                        (() => {
+                          try {
+                            return formatDistanceToNow(new Date(post.createdAt), { 
+                              addSuffix: true, 
+                              locale: ja 
+                            });
+                          } catch (error) {
+                            console.warn('Invalid date:', post.createdAt);
+                            return '日時不明';
+                          }
+                        })()
+                      ) : (
+                        '日時不明'
+                      )}
                     </span>
                   </div>
                   <div className="flex items-center space-x-1">
@@ -399,10 +410,21 @@ const PostDetail: React.FC = () => {
                           {comment.author?.username}
                         </span>
                         <span className="text-sm text-gray-500">
-                          {formatDistanceToNow(new Date(comment.createdAt), { 
-                            addSuffix: true, 
-                            locale: ja 
-                          })}
+                          {comment.createdAt ? (
+                            (() => {
+                              try {
+                                return formatDistanceToNow(new Date(comment.createdAt), { 
+                                  addSuffix: true, 
+                                  locale: ja 
+                                });
+                              } catch (error) {
+                                console.warn('Invalid comment date:', comment.createdAt);
+                                return '日時不明';
+                              }
+                            })()
+                          ) : (
+                            '日時不明'
+                          )}
                         </span>
                       </div>
                     </div>

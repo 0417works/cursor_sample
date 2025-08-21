@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -17,7 +17,7 @@ model User {
   password  String
   avatar    String?
   bio       String?
-  role      Role     @default(USER)
+  role      String   @default("USER")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -115,8 +115,5 @@ model UserSession {
   @@map("user_sessions")
 }
 
-enum Role {
-  USER
-  MODERATOR
-  ADMIN
-}
+// SQLite互換のため、enumの代わりにString型を使用
+// 有効な値: "USER", "MODERATOR", "ADMIN"

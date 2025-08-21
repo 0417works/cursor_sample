@@ -45,8 +45,31 @@ const CreatePost: React.FC = () => {
         navigate('/posts')
       },
       onError: (error: any) => {
-        const message = error.response?.data?.error || '投稿の作成に失敗しました'
+        let message = '投稿の作成に失敗しました'
+        
+        if (error.response?.data?.error) {
+          message = error.response.data.error
+          
+          // バリデーションエラーの詳細を表示
+          if (error.response.data.details && Array.isArray(error.response.data.details)) {
+            const details = error.response.data.details
+              .map((detail: any) => `${detail.path}: ${detail.msg}`)
+              .join('\n')
+            message += `\n\n詳細:\n${details}`
+          }
+        }
+        
         toast.error(message)
+        console.error('Create post error:', error.response?.data)
+        console.error('Error details:', error.response?.data?.details)
+        
+        // エラーの詳細をコンソールに表示
+        if (error.response?.data?.details && Array.isArray(error.response.data.details)) {
+          console.error('Validation errors:')
+          error.response.data.details.forEach((detail: any, index: number) => {
+            console.error(`  ${index + 1}. ${detail.path}: ${detail.msg}`)
+          })
+        }
       }
     }
   )
@@ -107,11 +130,15 @@ const CreatePost: React.FC = () => {
         imageUrl = uploadResult.url
       }
 
-      // 投稿を作成
-      await createPostMutation.mutateAsync({
+      // 送信データの確認
+      const postData = {
         ...formData,
         imageUrl
-      })
+      }
+      console.log('Sending post data:', postData)
+
+      // 投稿を作成
+      await createPostMutation.mutateAsync(postData)
     } finally {
       setIsSubmitting(false)
     }

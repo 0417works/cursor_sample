@@ -52,7 +52,23 @@ const Profile: React.FC = () => {
         queryClient.invalidateQueries(['userPosts', user?.id])
       },
       onError: (error: any) => {
-        const message = error.response?.data?.error || 'プロフィールの更新に失敗しました'
+        console.error('Profile update error:', error.response?.data)
+        console.error('Full error object:', error)
+        
+        let message = error.response?.data?.error || 'プロフィールの更新に失敗しました'
+        
+        // バリデーションエラーの詳細を表示
+        if (error.response?.data?.details && Array.isArray(error.response.data.details)) {
+          const details = error.response.data.details
+            .map((detail: any) => `${detail.path}: ${detail.msg}`)
+            .join('\n')
+          message += `\n\n詳細:\n${details}`
+        }
+        
+        // エラーレスポンスの全体をログに出力
+        console.error('Error response data:', error.response?.data)
+        console.error('Error response status:', error.response?.status)
+        
         toast.error(message)
       }
     }
@@ -68,6 +84,8 @@ const Profile: React.FC = () => {
       newErrors.username = 'ユーザー名は3文字以上で入力してください'
     } else if (editForm.username.length > 20) {
       newErrors.username = 'ユーザー名は20文字以下で入力してください'
+    } else if (!/^[a-zA-Z0-9_]+$/.test(editForm.username)) {
+      newErrors.username = 'ユーザー名は英数字とアンダースコアのみ使用できます'
     }
 
     if (!editForm.email.trim()) {
@@ -92,6 +110,7 @@ const Profile: React.FC = () => {
       return
     }
 
+    console.log('Sending profile data:', editForm)
     updateProfileMutation.mutate(editForm)
   }
 

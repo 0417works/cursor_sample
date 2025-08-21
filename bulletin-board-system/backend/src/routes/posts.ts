@@ -254,7 +254,22 @@ router.post('/', [
   body('content').isLength({ min: 1, max: 10000 }),
   body('categoryId').optional().isString(),
   body('tags').optional().isArray(),
-  body('imageUrl').optional().isURL()
+  body('imageUrl').optional().custom((value) => {
+    if (value === null || value === undefined || value === '') {
+      return true; // null, undefined, 空文字列は許可
+    }
+    // URLの場合は有効なURLかチェック
+    if (typeof value === 'string') {
+      try {
+        new URL(value);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }).withMessage('imageUrl must be a valid URL or null'),
+  body('isPublished').optional().isBoolean()
 ], async (req: AuthRequest, res: Response) => {
   try {
     const errors = validationResult(req);
@@ -551,6 +566,112 @@ router.patch('/:id/toggle-publish', authenticateToken, async (req: AuthRequest, 
 
   } catch (error) {
     console.error('Toggle post publish error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// コメント一覧の取得
+router.get('/:id/comments', [
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('limit').optional().isInt({ min: 1, max: 100 }).toInt()
+], async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    // 投稿の存在確認
+    const post = await prisma.post.findUnique({
+      where: { id }
+    });
+
+    if (!post) {
+      return res.status(404).json({ 
+        error: 'Post not found' 
+      });
+    }
+
+    // コメントの取得
+    const [comments, total] = await Promise.all([
+      prisma.comment.findMany({
+        where: { postId: id },
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              avatar: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'asc'
+        },
+        skip: offset,
+        take: limit
+      }),
+      prisma.comment.count({
+        where: { postId: id }
+      })
+    ]);
+
+    // ページネーション情報の計算
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    res.json({
+      comments,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: total,
+        hasNextPage,
+        hasPrevPage,
+        limit
+      }
+    });
+
+  } catch (error) {
+    console.error('Get comments error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// 閲覧数の増加
+router.patch('/:id/increment-view', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // 投稿の存在確認
+    const post = await prisma.post.findUnique({
+      where: { id }
+    });
+
+    if (!post) {
+      return res.status(404).json({ 
+        error: 'Post not found' 
+      });
+    }
+
+    // 閲覧数の更新
+    const updatedPost = await prisma.post.update({
+      where: { id },
+      data: { viewCount: { increment: 1 } }
+    });
+
+    res.json({
+      message: 'View count incremented successfully',
+      viewCount: updatedPost.viewCount
+    });
+
+  } catch (error) {
+    console.error('Increment view count error:', error);
     res.status(500).json({ 
       error: 'Internal server error' 
     });
