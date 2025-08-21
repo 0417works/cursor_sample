@@ -22,8 +22,26 @@ app.use(compression()); // レスポンスの圧縮
 app.use(morgan('combined')); // ログ出力
 
 // CORS設定
+const allowedOrigins = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // 開発環境ではすべてのオリジンを許可（セキュリティ上の注意が必要）
+    if (process.env.NODE_ENV === 'development' && !process.env.CORS_ORIGIN) {
+      return callback(null, true);
+    }
+    
+    // プリフライトリクエストの場合は常に許可
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy violation'));
+    }
+  },
   credentials: true
 }));
 

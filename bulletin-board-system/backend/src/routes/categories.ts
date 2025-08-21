@@ -25,9 +25,19 @@ router.get('/', async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Get categories error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error' 
-    });
+    
+    // 開発環境ではより詳細なエラー情報を提供
+    if (process.env.NODE_ENV === 'development') {
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Internal server error' 
+      });
+    }
   }
 });
 

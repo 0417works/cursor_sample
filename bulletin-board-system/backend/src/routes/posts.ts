@@ -12,9 +12,12 @@ router.get('/', [
   query('page').optional().isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 50 }).toInt(),
   query('category').optional().isString(),
+  query('categoryId').optional().isString(),
   query('tag').optional().isString(),
   query('search').optional().isString(),
-  query('sort').optional().isIn(['newest', 'oldest', 'popular', 'title'])
+  query('sort').optional().isIn(['newest', 'oldest', 'popular', 'title']),
+  query('sortBy').optional().isString(),
+  query('sortOrder').optional().isIn(['asc', 'desc'])
 ], optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
@@ -24,6 +27,8 @@ router.get('/', [
     const tag = req.query.tag as string;
     const search = req.query.search as string;
     const sort = req.query.sort as string || 'newest';
+    const sortBy = req.query.sortBy as string;
+    const sortOrder = req.query.sortOrder as string || 'desc';
 
     // 検索条件の構築
     const where: any = {
@@ -32,6 +37,12 @@ router.get('/', [
 
     if (category) {
       where.category = { name: category };
+    }
+
+    // categoryIdパラメータでの絞り込み（フロントエンド対応）
+    const categoryId = req.query.categoryId as string;
+    if (categoryId) {
+      where.categoryId = categoryId;
     }
 
     if (tag) {
@@ -51,18 +62,32 @@ router.get('/', [
 
     // ソート条件の設定
     let orderBy: any = {};
-    switch (sort) {
-      case 'oldest':
-        orderBy.createdAt = 'asc';
-        break;
-      case 'popular':
-        orderBy.viewCount = 'desc';
-        break;
-      case 'title':
-        orderBy.title = 'asc';
-        break;
-      default: // newest
+    
+    // sortByとsortOrderパラメータが指定されている場合はそれを使用
+    if (sortBy && sortOrder) {
+      // 有効なフィールド名かチェック
+      const validSortFields = ['createdAt', 'updatedAt', 'title', 'viewCount', 'likeCount'];
+      if (validSortFields.includes(sortBy)) {
+        orderBy[sortBy] = sortOrder;
+      } else {
+        // 無効なフィールドの場合はデフォルトのソート
         orderBy.createdAt = 'desc';
+      }
+    } else {
+      // 従来のsortパラメータを使用
+      switch (sort) {
+        case 'oldest':
+          orderBy.createdAt = 'asc';
+          break;
+        case 'popular':
+          orderBy.viewCount = 'desc';
+          break;
+        case 'title':
+          orderBy.title = 'asc';
+          break;
+        default: // newest
+          orderBy.createdAt = 'desc';
+      }
     }
 
     // 投稿の取得
@@ -127,9 +152,19 @@ router.get('/', [
 
   } catch (error) {
     console.error('Get posts error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error' 
-    });
+    
+    // 開発環境ではより詳細なエラー情報を提供
+    if (process.env.NODE_ENV === 'development') {
+      res.status(500).json({ 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Internal server error' 
+      });
+    }
   }
 });
 
