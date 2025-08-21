@@ -341,7 +341,7 @@ export const imageApi = {
 export const statsApi = {
   // 全体統計取得
   getOverallStats: async () => {
-    const response = await apiClient.get('/stats/overall')
+    const response = await apiClient.get('/posts/stats/overview')
     return response.data
   },
 

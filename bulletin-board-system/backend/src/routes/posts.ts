@@ -679,3 +679,36 @@ router.patch('/:id/increment-view', async (req: Request, res: Response) => {
 });
 
 export default router;
+
+// 全体の統計情報を取得
+router.get('/stats/overview', async (req: Request, res: Response) => {
+  try {
+    // 各統計情報を並行して取得
+    const [totalPosts, totalUsers, totalComments, totalViews] = await Promise.all([
+      prisma.post.count({
+        where: { isPublished: true }
+      }),
+      prisma.user.count({
+        where: { isActive: true }
+      }),
+      prisma.comment.count(),
+      prisma.post.aggregate({
+        where: { isPublished: true },
+        _sum: { viewCount: true }
+      })
+    ]);
+
+    res.json({
+      totalPosts,
+      totalUsers,
+      totalComments,
+      totalViews: totalViews._sum.viewCount || 0
+    });
+
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});

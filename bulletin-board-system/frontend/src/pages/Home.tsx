@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
 import Button from '../components/ui/Button'
-import { postsApi, categoriesApi } from '../services/api'
+import { postsApi, categoriesApi, statsApi } from '../services/api'
 import { 
   Users, 
   FileText, 
@@ -36,13 +36,15 @@ const Home: React.FC = () => {
     categoriesApi.getCategories
   )
 
-  // 統計情報（モックデータ）
-  const stats = {
-    totalPosts: 1250,
-    totalUsers: 342,
-    totalComments: 5678,
-    totalViews: 45600
-  }
+  // 全体統計情報の取得
+  const { data: overallStats, isLoading: statsLoading } = useQuery(
+    ['overallStats'],
+    () => statsApi.getOverallStats(),
+    {
+      refetchInterval: 300000, // 5分ごとに更新
+      staleTime: 300000 // 5分間はキャッシュを使用
+    }
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -81,7 +83,9 @@ const Home: React.FC = () => {
               <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mx-auto mb-4">
                 <FileText className="w-6 h-6 text-blue-600" />
               </div>
-              <div className="text-2xl font-bold text-gray-900">{stats.totalPosts.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {statsLoading ? '...' : (overallStats?.totalPosts || 0).toLocaleString()}
+              </div>
               <div className="text-sm text-gray-600">総投稿数</div>
             </CardBody>
           </Card>
@@ -91,7 +95,9 @@ const Home: React.FC = () => {
               <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mx-auto mb-4">
                 <Users className="w-6 h-6 text-green-600" />
               </div>
-              <div className="text-2xl font-bold text-gray-900">{stats.totalUsers.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {statsLoading ? '...' : (overallStats?.totalUsers || 0).toLocaleString()}
+              </div>
               <div className="text-sm text-gray-600">登録ユーザー</div>
             </CardBody>
           </Card>
@@ -101,7 +107,9 @@ const Home: React.FC = () => {
               <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mx-auto mb-4">
                 <MessageSquare className="w-6 h-6 text-purple-600" />
               </div>
-              <div className="text-2xl font-bold text-gray-900">{stats.totalComments.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {statsLoading ? '...' : (overallStats?.totalComments || 0).toLocaleString()}
+              </div>
               <div className="text-sm text-gray-600">総コメント数</div>
             </CardBody>
           </Card>
@@ -111,7 +119,9 @@ const Home: React.FC = () => {
               <div className="flex items-center justify-center w-12 h-12 bg-orange-100 rounded-lg mx-auto mb-4">
                 <Eye className="w-6 h-6 text-orange-600" />
               </div>
-              <div className="text-2xl font-bold text-gray-900">{stats.totalViews.toLocaleString()}</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {statsLoading ? '...' : (overallStats?.totalViews || 0).toLocaleString()}
+              </div>
               <div className="text-sm text-gray-600">総閲覧数</div>
             </CardBody>
           </Card>

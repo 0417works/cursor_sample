@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
-import { authApi, postsApi } from '../services/api'
+import { authApi, postsApi, statsApi } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { 
   User, 
@@ -14,7 +14,9 @@ import {
   Settings,
   Eye,
   Clock,
-  MessageSquare
+  MessageSquare,
+  Users,
+  TrendingUp
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -38,6 +40,16 @@ const Profile: React.FC = () => {
     () => postsApi.getPosts({ authorId: user?.id, page: 1, limit: 20 }),
     {
       enabled: !!user?.id
+    }
+  )
+
+  // 全体の統計情報を取得
+  const { data: overallStats, isLoading: statsLoading } = useQuery(
+    ['overallStats'],
+    () => statsApi.getOverallStats(),
+    {
+      refetchInterval: 300000, // 5分ごとに更新
+      staleTime: 300000 // 5分間はキャッシュを使用
     }
   )
 
@@ -296,6 +308,66 @@ const Profile: React.FC = () => {
                       <p className="text-gray-900">
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString('ja-JP') : '不明'}
                       </p>
+                    </div>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+
+            {/* 全体統計情報 */}
+            <Card className="mt-6">
+              <CardHeader>
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <TrendingUp className="w-5 h-5 mr-2" />
+                  全体統計
+                </h3>
+              </CardHeader>
+              <CardBody>
+                {statsLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="animate-pulse">
+                        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 flex items-center">
+                        <FileText className="w-4 h-4 mr-2" />
+                        総投稿数
+                      </span>
+                      <span className="font-semibold text-gray-900">
+                        {overallStats?.totalPosts?.toLocaleString() || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 flex items-center">
+                        <Users className="w-4 h-4 mr-2" />
+                        登録ユーザー
+                      </span>
+                      <span className="font-semibold text-gray-900">
+                        {overallStats?.totalUsers?.toLocaleString() || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 flex items-center">
+                        <MessageSquare className="w-4 h-4 mr-2" />
+                        総コメント数
+                      </span>
+                      <span className="font-semibold text-gray-900">
+                        {overallStats?.totalComments?.toLocaleString() || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 flex items-center">
+                        <Eye className="w-4 h-4 mr-2" />
+                        総閲覧数
+                      </span>
+                      <span className="font-semibold text-gray-900">
+                        {overallStats?.totalViews?.toLocaleString() || 0}
+                      </span>
                     </div>
                   </div>
                 )}
