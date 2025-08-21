@@ -268,7 +268,7 @@ export const uploadApi = {
   // 単一ファイルアップロード
   uploadFile: async (file: File) => {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('image', file)
     
     const response = await apiClient.post('/upload/single', formData, {
       headers: {
@@ -282,7 +282,7 @@ export const uploadApi = {
   uploadMultipleFiles: async (files: File[]) => {
     const formData = new FormData()
     files.forEach((file) => {
-      formData.append('files', file)
+      formData.append('images', file)
     })
     
     const response = await apiClient.post('/upload/multiple', formData, {
