@@ -22,7 +22,8 @@ const CreatePost: React.FC = () => {
     title: '',
     content: '',
     categoryId: '',
-    isPublished: true
+    isPublished: true,
+    imageUrl: null as string | null
   })
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
@@ -37,26 +38,27 @@ const CreatePost: React.FC = () => {
 
   // 投稿作成のミューテーション
   const createPostMutation = useMutation(
-    (postData: any) => postsApi.createPost(postData),
+    (postData: any) => {
+      console.log('=== createPostMutation 開始 ===');
+      console.log('Post data to create:', postData);
+      console.log('Image URL in post data:', postData.imageUrl);
+      return postsApi.createPost(postData);
+    },
     {
-      onSuccess: () => {
-        queryClient.invalidateQueries('posts')
+      onSuccess: (data) => {
+        console.log('=== 投稿作成成功 ===');
+        console.log('Post creation success data:', data);
         toast.success('投稿を作成しました')
         navigate('/posts')
       },
       onError: (error: any) => {
+        console.error('=== 投稿作成エラー ===');
+        console.error('Post creation error:', error);
+        console.error('Error response:', error.response?.data);
         let message = '投稿の作成に失敗しました'
         
         if (error.response?.data?.error) {
           message = error.response.data.error
-          
-          // バリデーションエラーの詳細を表示
-          if (error.response.data.details && Array.isArray(error.response.data.details)) {
-            const details = error.response.data.details
-              .map((detail: any) => `${detail.path}: ${detail.msg}`)
-              .join('\n')
-            message += `\n\n詳細:\n${details}`
-          }
         }
         
         toast.error(message)
@@ -76,14 +78,44 @@ const CreatePost: React.FC = () => {
 
   // 画像アップロードのミューテーション
   const uploadImageMutation = useMutation(
-    (file: File) => uploadApi.uploadFile(file),
+    (file: File) => {
+      console.log('=== uploadImageMutation 開始 ===');
+      console.log('File to upload:', file);
+      console.log('File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+      return uploadApi.uploadFile(file);
+    },
     {
       onSuccess: (data) => {
-        setFormData(prev => ({ ...prev, imageUrl: data.url }))
+        console.log('=== 画像アップロード成功 ===');
+        console.log('Upload success data:', data);
+        console.log('Full response structure:', JSON.stringify(data, null, 2));
+        
+        // レスポンス構造を詳しく確認
+        if (data.file && data.file.url) {
+          console.log('Image URL from file.url:', data.file.url);
+          setFormData(prev => ({ ...prev, imageUrl: data.file.url }))
+        } else if (data.url) {
+          console.log('Image URL from data.url:', data.url);
+          setFormData(prev => ({ ...prev, imageUrl: data.url }))
+        } else {
+          console.error('No image URL found in response:', data);
+          toast.error('画像URLの取得に失敗しました');
+          return; // エラー時は処理を中断
+        }
+        
         toast.success('画像をアップロードしました')
       },
-      onError: () => {
+      onError: (error: any) => {
+        console.error('=== 画像アップロードエラー ===');
+        console.error('Upload error:', error);
+        console.error('Error response:', error.response?.data);
         toast.error('画像のアップロードに失敗しました')
+        // エラー時は処理を中断
+        throw error;
       }
     }
   )
@@ -122,23 +154,64 @@ const CreatePost: React.FC = () => {
 
     setIsSubmitting(true)
     try {
-      let imageUrl = null
+      let imageUrl: string | null = null
       
       // 画像がある場合は先にアップロード
       if (selectedImage) {
-        const uploadResult = await uploadImageMutation.mutateAsync(selectedImage)
-        imageUrl = uploadResult.url
+        console.log('=== 画像アップロード開始 ===');
+        console.log('Selected image:', selectedImage);
+        console.log('Image file details:', {
+          name: selectedImage.name,
+          size: selectedImage.size,
+          type: selectedImage.type
+        });
+        
+        try {
+          const uploadResult = await uploadImageMutation.mutateAsync(selectedImage)
+          console.log('Upload result:', uploadResult);
+          
+          // 画像URLの取得を改善
+          let extractedImageUrl: string | null = null;
+          if (uploadResult.file && uploadResult.file.url) {
+            extractedImageUrl = uploadResult.file.url;
+            console.log('Extracted imageUrl from file.url:', extractedImageUrl);
+          } else if (uploadResult.url) {
+            extractedImageUrl = uploadResult.url;
+            console.log('Extracted imageUrl from url:', extractedImageUrl);
+          } else {
+            console.error('No image URL found in upload result:', uploadResult);
+            toast.error('画像URLの取得に失敗しました');
+            return;
+          }
+          
+          imageUrl = extractedImageUrl;
+          console.log('Final extracted imageUrl:', imageUrl);
+          
+          // フォームデータの状態も更新
+          setFormData(prev => ({ ...prev, imageUrl }))
+          console.log('Updated form data:', { ...formData, imageUrl });
+        } catch (uploadError) {
+          console.error('Image upload failed:', uploadError);
+          toast.error('画像のアップロードに失敗しました');
+          return;
+        }
+      } else {
+        console.log('No image selected for upload');
       }
 
       // 送信データの確認
       const postData = {
         ...formData,
-        imageUrl
+        imageUrl: imageUrl || formData.imageUrl || null
       }
-      console.log('Sending post data:', postData)
+      console.log('=== 投稿作成開始 ===');
+      console.log('Final post data to send:', postData);
+      console.log('Image URL in post data:', postData.imageUrl);
 
       // 投稿を作成
       await createPostMutation.mutateAsync(postData)
+    } catch (error) {
+      console.error('Form submission error:', error);
     } finally {
       setIsSubmitting(false)
     }
@@ -148,26 +221,40 @@ const CreatePost: React.FC = () => {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      console.log('=== 画像選択 ===');
+      console.log('Selected file:', file);
+      console.log('File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+      
       // ファイルサイズチェック（5MB以下）
       if (file.size > 5 * 1024 * 1024) {
+        console.error('File too large:', file.size);
         toast.error('画像サイズは5MB以下にしてください')
         return
       }
 
       // ファイル形式チェック
       if (!file.type.startsWith('image/')) {
+        console.error('Invalid file type:', file.type);
         toast.error('画像ファイルを選択してください')
         return
       }
 
+      console.log('File validation passed, setting selected image');
       setSelectedImage(file)
       
       // プレビュー表示
       const reader = new FileReader()
       reader.onload = (e) => {
+        console.log('Image preview loaded');
         setImagePreview(e.target?.result as string)
       }
       reader.readAsDataURL(file)
+    } else {
+      console.log('No file selected');
     }
   }
 
@@ -175,7 +262,7 @@ const CreatePost: React.FC = () => {
   const removeImage = () => {
     setSelectedImage(null)
     setImagePreview(null)
-    setFormData(prev => ({ ...prev, imageUrl: undefined }))
+    setFormData(prev => ({ ...prev, imageUrl: null }))
   }
 
   // 入力値変更

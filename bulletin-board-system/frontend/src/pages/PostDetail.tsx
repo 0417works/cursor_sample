@@ -31,20 +31,48 @@ const PostDetail: React.FC = () => {
   const [showWeather, setShowWeather] = useState(false)
   const [showImages, setShowImages] = useState(false)
 
+  // 画像エラー表示関数
+  const showImageError = (imgElement: HTMLImageElement, imageUrl: string) => {
+    // エラーメッセージを表示
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'w-full h-96 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 error-message';
+    errorDiv.innerHTML = `
+      <div class="text-center">
+        <div class="text-4xl mb-2">🖼️</div>
+        <div class="text-sm">画像の読み込みに失敗しました</div>
+        <div class="text-xs mt-1">CORSエラーの可能性があります</div>
+        <button class="mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600" onclick="window.open('${imageUrl}', '_blank')">
+          新しいタブで開く
+        </button>
+      </div>
+    `;
+    
+    // 画像要素を隠してエラーメッセージを表示
+    imgElement.style.display = 'none';
+    imgElement.parentNode?.appendChild(errorDiv);
+  }
+
   // 投稿データの取得
-  const { data: post, isLoading, error } = useQuery(
+  const { data: postData, isLoading, error } = useQuery(
     ['post', id],
     () => postsApi.getPost(id!),
     {
       enabled: !!id,
-      onSuccess: () => {
+      onSuccess: (data) => {
+        console.log('Post data received:', data);
         // 閲覧数の増加
         if (id) {
           postsApi.incrementViewCount(id)
         }
+      },
+      onError: (error) => {
+        console.error('Error fetching post:', error);
       }
     }
   )
+
+  // 投稿データの取得（ネストされた構造に対応）
+  const post = postData?.post
 
   // コメントデータの取得
   const { data: commentsData, isLoading: commentsLoading } = useQuery(
@@ -121,38 +149,39 @@ const PostDetail: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-            <div className="h-64 bg-gray-200 rounded mb-6"></div>
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-4 bg-gray-200 rounded"></div>
-              ))}
-            </div>
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">投稿を読み込み中...</p>
         </div>
       </div>
     )
   }
 
-  if (error || !post) {
+  if (error || !postData || !post) {
+    console.error('Post error or not found:', error, postData, post);
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Card>
-            <CardBody className="text-center py-12">
-              <p className="text-red-600 mb-4">投稿の取得に失敗しました</p>
-              <Button onClick={() => navigate('/posts')}>
-                投稿一覧に戻る
-              </Button>
-            </CardBody>
-          </Card>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">投稿が見つかりません</h2>
+          <p className="text-gray-600 mb-6">指定された投稿が存在しないか、アクセス権限がありません。</p>
+          <Button onClick={() => navigate('/posts')}>
+            投稿一覧に戻る
+          </Button>
         </div>
       </div>
     )
+  }
+
+  // デバッグ情報の表示
+  console.log('Raw post data:', postData);
+  console.log('Extracted post:', post);
+  if (post) {
+    console.log('Post author:', post.author);
+    console.log('Post category:', post.category);
+    console.log('Post imageUrl:', post.imageUrl);
+    console.log('Post viewCount:', post.viewCount);
+    console.log('Post createdAt:', post.createdAt);
   }
 
   const canEdit = isAuthenticated && (user?.id === post.author?.id || user?.role === 'ADMIN')
@@ -172,7 +201,7 @@ const PostDetail: React.FC = () => {
                 <div className="flex items-center space-x-4 text-sm text-gray-500">
                   <div className="flex items-center space-x-1">
                     <User className="w-4 h-4" />
-                    <span>{post.author?.username}</span>
+                    <span>{post.author?.username || '不明なユーザー'}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Clock className="w-4 h-4" />
@@ -233,14 +262,84 @@ const PostDetail: React.FC = () => {
           </CardHeader>
 
           <CardBody>
-            {/* 投稿画像 */}
+            {/* 画像表示 */}
             {post.imageUrl && (
               <div className="mb-6">
-                <img
-                  src={post.imageUrl}
-                  alt={post.title}
-                  className="w-full h-96 object-cover rounded-lg"
-                />
+                <div className="mb-2 text-sm text-gray-500">
+                  画像URL: {post.imageUrl}
+                </div>
+                
+                {/* 画像の読み込み状態を管理 */}
+                <div className="relative">
+                  <img
+                    src={post.imageUrl}
+                    alt={post.title}
+                    className="w-full h-96 object-cover rounded-lg"
+                    onError={(e) => {
+                      console.error('Image load error:', e);
+                      console.error('Failed image URL:', post.imageUrl);
+                      
+                      // CORSエラーの場合、画像をBase64エンコードして表示を試行
+                      if (post.imageUrl && post.imageUrl.startsWith('http://localhost:3001/')) {
+                        console.log('Attempting to fetch image as blob to convert to base64...');
+                        
+                        // 画像をBlobとして取得してBase64に変換
+                        fetch(post.imageUrl, { 
+                          mode: 'cors',
+                          headers: {
+                            'Accept': 'image/*'
+                          }
+                        })
+                          .then(response => {
+                            if (!response.ok) {
+                              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                            return response.blob();
+                          })
+                          .then(blob => {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const base64 = reader.result as string;
+                              console.log('Image converted to base64 successfully');
+                              
+                              // 画像要素のsrcをBase64に変更
+                              e.currentTarget.src = base64;
+                              e.currentTarget.style.display = 'block';
+                              
+                              // エラーメッセージを削除
+                              const errorDiv = e.currentTarget.parentNode?.querySelector('.error-message');
+                              if (errorDiv) {
+                                errorDiv.remove();
+                              }
+                            };
+                            reader.readAsDataURL(blob);
+                          })
+                          .catch(fetchError => {
+                            console.error('Failed to fetch image as blob:', fetchError);
+                            showImageError(e.currentTarget, post.imageUrl);
+                          });
+                      } else {
+                        showImageError(e.currentTarget, post.imageUrl);
+                      }
+                    }}
+                    onLoad={() => {
+                      console.log('Image loaded successfully:', post.imageUrl);
+                    }}
+                  />
+                  
+                  {/* 画像を新しいタブで開くボタン */}
+                  <div className="absolute top-2 right-2">
+                    <button
+                      onClick={() => window.open(post.imageUrl, '_blank')}
+                      className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-all"
+                      title="新しいタブで画像を開く"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -258,6 +357,21 @@ const PostDetail: React.FC = () => {
                 <span className="text-sm text-gray-600">
                   {post.category.name}
                 </span>
+              </div>
+            )}
+
+            {/* タグ */}
+            {post.tags && post.tags.length > 0 && (
+              <div className="flex items-center space-x-2 mb-6">
+                <span className="text-sm text-gray-600">タグ:</span>
+                {post.tags.map((tagItem: any) => (
+                  <span
+                    key={tagItem.tag.id}
+                    className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full"
+                  >
+                    {tagItem.tag.name}
+                  </span>
+                ))}
               </div>
             )}
 

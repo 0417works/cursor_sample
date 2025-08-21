@@ -49,8 +49,47 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 静的ファイルの提供
-app.use('/uploads', express.static('uploads'));
+// 静的ファイルの提供（CORSヘッダー付き）
+app.use('/uploads', (req, res, next) => {
+  // CORSヘッダーを設定
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.header('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
+  
+  // OPTIONSリクエストの処理
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  // 画像ファイルのMIMEタイプを設定
+  const ext = req.path.split('.').pop()?.toLowerCase();
+  if (ext === 'png') {
+    res.type('image/png');
+  } else if (ext === 'jpg' || ext === 'jpeg') {
+    res.type('image/jpeg');
+  } else if (ext === 'gif') {
+    res.type('image/gif');
+  }
+  
+  next();
+}, express.static('uploads', {
+  setHeaders: (res, path) => {
+    // 静的ファイル配信時にもCORSヘッダーを設定
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.set('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    res.set('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
+    
+    // 画像ファイルの場合、追加のヘッダーを設定
+    if (path.match(/\.(png|jpg|jpeg|gif)$/i)) {
+      res.set('Cache-Control', 'public, max-age=31536000');
+      res.set('Content-Disposition', 'inline');
+    }
+  }
+}));
 
 // ヘルスチェックエンドポイント
 app.get('/health', (req, res) => {
