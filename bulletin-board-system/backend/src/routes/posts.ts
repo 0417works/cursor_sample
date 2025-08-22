@@ -300,9 +300,10 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       });
     }
 
-    if (!post.isPublished && (!req.user || req.user.role === 'USER')) {
+    // 下書きの場合、投稿者本人または管理者のみアクセス可能
+    if (!post.isPublished && (!req.user || (req.user.role === 'USER' && req.user.id !== post.authorId))) {
       return res.status(403).json({ 
-        error: 'Access denied' 
+        error: 'Access denied. Draft posts can only be accessed by the author or administrators.' 
       });
     }
 

@@ -4,7 +4,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { Card, CardBody } from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
-import { postsApi, categoriesApi } from '../services/api'
+import { postsApi, categoriesApi, buildImageUrl } from '../services/api'
 import { 
   Search, 
   Filter, 
@@ -279,7 +279,7 @@ const Posts: React.FC = () => {
                     {post.imageUrl && (
                       <div className="mb-4">
                         <img
-                          src={post.imageUrl}
+                          src={buildImageUrl(post.imageUrl) || ''}
                           alt={post.title}
                           className="w-full h-48 object-cover rounded-lg"
                         />

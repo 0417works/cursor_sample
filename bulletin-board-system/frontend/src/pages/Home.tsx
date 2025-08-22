@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
 import Button from '../components/ui/Button'
-import { postsApi, categoriesApi, statsApi } from '../services/api'
+import { postsApi, categoriesApi, statsApi, buildImageUrl } from '../services/api'
 import { 
   Users, 
   FileText, 
@@ -163,7 +163,7 @@ const Home: React.FC = () => {
                       <div className="flex items-start space-x-4">
                         {post.imageUrl && (
                           <img
-                            src={post.imageUrl}
+                            src={buildImageUrl(post.imageUrl) || ''}
                             alt={post.title}
                             className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
                           />

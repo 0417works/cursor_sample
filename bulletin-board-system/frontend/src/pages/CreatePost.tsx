@@ -1,10 +1,10 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from 'react-query'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
-import { postsApi, categoriesApi, uploadApi } from '../services/api'
+import { postsApi, categoriesApi, uploadApi, buildImageUrl } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { 
   FileText, 
@@ -17,12 +17,14 @@ const CreatePost: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const { id } = useParams<{ id: string }>()
+  const isEditMode = !!id
   
   const [formData, setFormData] = useState({
     title: '',
     content: '',
     categoryId: '',
-    isPublished: true,
+    isPublished: false, // 編集モードの場合は下書きとして開始
     imageUrl: null as string | null
   })
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
@@ -36,6 +38,51 @@ const CreatePost: React.FC = () => {
     categoriesApi.getCategories
   )
 
+  // 編集モードの場合、既存の投稿データを取得
+  const { data: existingPost, isLoading: postLoading, error: postError } = useQuery(
+    ['post', id],
+    () => postsApi.getPost(id!),
+    {
+      enabled: isEditMode && !!id,
+      staleTime: 0, // 常に最新データを取得
+      refetchOnMount: true, // コンポーネントマウント時に再取得
+      onSuccess: (data) => {
+        console.log('=== 既存投稿データ取得成功 ===');
+        console.log('Existing post data:', data);
+        // フォームデータの初期化はuseEffectで処理
+      },
+      onError: (error: any) => {
+        console.error('=== 既存投稿データ取得エラー ===');
+        console.error('Error fetching existing post:', error);
+        if (error.response?.status === 403) {
+          toast.error('この投稿を編集する権限がありません');
+        } else {
+          toast.error('投稿データの取得に失敗しました');
+        }
+      }
+    }
+  )
+
+  // 編集モードの場合のデータ初期化
+  useEffect(() => {
+    if (isEditMode && existingPost?.post) {
+      console.log('=== useEffect: フォームデータ初期化 ===');
+      console.log('Existing post data in useEffect:', existingPost.post);
+      
+      setFormData({
+        title: existingPost.post.title,
+        content: existingPost.post.content,
+        categoryId: existingPost.post.categoryId || '',
+        isPublished: existingPost.post.isPublished,
+        imageUrl: existingPost.post.imageUrl
+      });
+      
+      if (existingPost.post.imageUrl) {
+        setImagePreview(buildImageUrl(existingPost.post.imageUrl));
+      }
+    }
+  }, [isEditMode, existingPost]);
+
   // 投稿作成のミューテーション
   const createPostMutation = useMutation(
     (postData: any) => {
@@ -48,8 +95,19 @@ const CreatePost: React.FC = () => {
       onSuccess: (data) => {
         console.log('=== 投稿作成成功 ===');
         console.log('Post creation success data:', data);
+        
+        // キャッシュを更新
+        queryClient.invalidateQueries(['posts']);
+        queryClient.invalidateQueries(['drafts']);
+        
         toast.success('投稿を作成しました')
-        navigate('/posts')
+        
+        // 下書きとして保存した場合は下書き一覧に、公開した場合は投稿一覧に遷移
+        if (data.post?.isPublished) {
+          navigate('/posts');
+        } else {
+          navigate('/drafts');
+        }
       },
       onError: (error: any) => {
         console.error('=== 投稿作成エラー ===');
@@ -72,6 +130,40 @@ const CreatePost: React.FC = () => {
             console.error(`  ${index + 1}. ${detail.path}: ${detail.msg}`)
           })
         }
+      }
+    }
+  )
+
+  // 投稿更新のミューテーション
+  const updatePostMutation = useMutation(
+    (postData: any) => {
+      console.log('=== updatePostMutation 開始 ===');
+      console.log('Post data to update:', postData);
+      return postsApi.updatePost(id!, postData);
+    },
+    {
+      onSuccess: (data) => {
+        console.log('=== 投稿更新成功 ===');
+        console.log('Post update success data:', data);
+        
+        // キャッシュを更新
+        queryClient.invalidateQueries(['post', id]);
+        queryClient.invalidateQueries(['drafts']);
+        queryClient.invalidateQueries(['posts']);
+        
+        toast.success('投稿を更新しました')
+        
+        // 下書きとして保存した場合は下書き一覧に、公開した場合は投稿一覧に遷移
+        if (data.post?.isPublished) {
+          navigate('/posts');
+        } else {
+          navigate('/drafts');
+        }
+      },
+      onError: (error: any) => {
+        console.error('=== 投稿更新エラー ===');
+        console.error('Post update error:', error);
+        toast.error('投稿の更新に失敗しました')
       }
     }
   )
@@ -208,8 +300,12 @@ const CreatePost: React.FC = () => {
       console.log('Final post data to send:', postData);
       console.log('Image URL in post data:', postData.imageUrl);
 
-      // 投稿を作成
-      await createPostMutation.mutateAsync(postData)
+      // 投稿を作成または更新
+      if (isEditMode) {
+        await updatePostMutation.mutateAsync(postData)
+      } else {
+        await createPostMutation.mutateAsync(postData)
+      }
     } catch (error) {
       console.error('Form submission error:', error);
     } finally {
@@ -293,21 +389,69 @@ const CreatePost: React.FC = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">新しい投稿を作成</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isEditMode ? '投稿を編集' : '新しい投稿を作成'}
+          </h1>
           <p className="text-gray-600 mt-2">
-            あなたの考えや経験を共有しましょう
+            {isEditMode 
+              ? '投稿の内容を編集できます'
+              : 'あなたの考えや経験を共有しましょう'
+            }
           </p>
+          
+          {/* 編集モードの場合のローディング状態とエラー状態 */}
+          {isEditMode && (
+            <div className="mt-4">
+              {postLoading && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                    <span className="text-blue-700">投稿データを読み込み中...</span>
+                  </div>
+                </div>
+              )}
+              {postError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <span className="text-red-700">
+                    {postError.response?.status === 403 
+                      ? 'この投稿を編集する権限がありません'
+                      : '投稿データの取得に失敗しました'
+                    }
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <Card>
           <CardHeader>
             <h2 className="text-xl font-semibold text-gray-900 flex items-center">
               <FileText className="w-5 h-5 mr-2" />
-              投稿情報
+              {isEditMode ? '投稿編集' : '投稿情報'}
             </h2>
           </CardHeader>
           <CardBody>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* 編集モードでデータ読み込み中またはエラーの場合、フォームを無効化 */}
+              {isEditMode && postLoading && !existingPost && (
+                <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <span className="text-gray-600">データを読み込み中...</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* 編集モードでエラーの場合 */}
+              {isEditMode && postError && !existingPost && (
+                <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-red-600 mb-2">⚠️</div>
+                    <span className="text-gray-600">データの読み込みに失敗しました</span>
+                  </div>
+                </div>
+              )}
               {/* タイトル */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -321,6 +465,7 @@ const CreatePost: React.FC = () => {
                   error={errors.title}
                   maxLength={100}
                   required
+                  disabled={isEditMode && postLoading && !existingPost}
                 />
                 <div className="mt-1 text-sm text-gray-500">
                   {formData.title.length}/100文字
@@ -341,6 +486,7 @@ const CreatePost: React.FC = () => {
                       : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                   }`}
                   required
+                  disabled={isEditMode && postLoading && !existingPost}
                 >
                   <option value="">カテゴリーを選択してください</option>
                   {categoriesLoading ? (
@@ -377,6 +523,7 @@ const CreatePost: React.FC = () => {
                   }`}
                   maxLength={10000}
                   required
+                  disabled={isEditMode && postLoading && !existingPost}
                 />
                 {errors.content && (
                   <p className="mt-1 text-sm text-red-600">
@@ -444,8 +591,14 @@ const CreatePost: React.FC = () => {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label htmlFor="is-published" className="ml-2 block text-sm text-gray-900">
-                  投稿を公開する
+                  {isEditMode ? '投稿を公開状態にする' : '投稿を公開する'}
                 </label>
+              </div>
+              
+              {/* 下書き保存の説明 */}
+              <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                <p>💡 下書きとして保存することをお勧めします。</p>
+                <p>内容を確認してから公開設定を変更してください。</p>
               </div>
 
               {/* 送信ボタン */}
@@ -458,12 +611,37 @@ const CreatePost: React.FC = () => {
                 >
                   キャンセル
                 </Button>
+                
+                {/* 下書き保存ボタン（新規作成時と編集時） */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const draftData = { ...formData, isPublished: false };
+                    if (isEditMode) {
+                      updatePostMutation.mutate(draftData);
+                    } else {
+                      createPostMutation.mutate(draftData);
+                    }
+                  }}
+                  loading={isEditMode ? updatePostMutation.isLoading : createPostMutation.isLoading}
+                  disabled={isSubmitting || 
+                    (isEditMode ? updatePostMutation.isLoading : createPostMutation.isLoading) || 
+                    (isEditMode && postLoading && !existingPost)
+                  }
+                >
+                  下書きとして保存
+                </Button>
+                
                 <Button
                   type="submit"
                   loading={isSubmitting}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (isEditMode && postLoading && !existingPost)}
                 >
-                  {formData.isPublished ? '投稿を公開' : '下書きとして保存'}
+                  {isEditMode 
+                    ? (formData.isPublished ? '投稿を更新' : '下書きとして更新')
+                    : (formData.isPublished ? '投稿を公開' : '下書きとして保存')
+                  }
                 </Button>
               </div>
             </form>

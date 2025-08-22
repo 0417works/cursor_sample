@@ -3,6 +3,23 @@ import axios from 'axios'
 // APIのベースURL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
 
+// 画像URLを構築するヘルパー関数
+export const buildImageUrl = (imagePath: string | null): string | null => {
+  if (!imagePath) return null
+  
+  // 既に完全なURLの場合はそのまま返す
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath
+  }
+  
+  // 相対パスの場合はバックエンドのベースURLを付ける
+  if (imagePath.startsWith('/uploads/')) {
+    return `http://localhost:3001${imagePath}`
+  }
+  
+  return imagePath
+}
+
 // axiosインスタンスの作成
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

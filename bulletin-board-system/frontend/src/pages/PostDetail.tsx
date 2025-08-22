@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
 import Button from '../components/ui/Button'
 
-import { postsApi, commentsApi, weatherApi, imageApi } from '../services/api'
+import { postsApi, commentsApi, weatherApi, imageApi, buildImageUrl } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { 
   Eye, 
@@ -272,7 +272,7 @@ const PostDetail: React.FC = () => {
                 {/* 画像の読み込み状態を管理 */}
                 <div className="relative">
                   <img
-                    src={post.imageUrl}
+                    src={buildImageUrl(post.imageUrl) || ''}
                     alt={post.title}
                     className="w-full h-96 object-cover rounded-lg"
                     onError={(e) => {

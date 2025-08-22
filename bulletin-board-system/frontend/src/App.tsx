@@ -40,6 +40,7 @@ const App: React.FC = () => {
               <Route path="/posts" element={<Layout><Posts /></Layout>} />
               <Route path="/posts/:id" element={<Layout><PostDetail /></Layout>} />
               <Route path="/posts/create" element={<Layout><CreatePost /></Layout>} />
+              <Route path="/posts/edit/:id" element={<Layout><CreatePost /></Layout>} />
               <Route path="/profile" element={<Layout><Profile /></Layout>} />
               <Route path="/drafts" element={<Drafts />} />
               
