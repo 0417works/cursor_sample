@@ -271,8 +271,17 @@ router.post('/', [
     if (value === null || value === undefined || value === '') {
       return true; // null, undefined, 空文字列は許可
     }
-    // URLの場合は有効なURLかチェック
+    // 文字列の場合は相対パスまたは完全なURLを許可
     if (typeof value === 'string') {
+      // 空文字列の場合は許可
+      if (value.trim() === '') {
+        return true;
+      }
+      // 相対パス（/uploads/で始まる）の場合は許可
+      if (value.startsWith('/uploads/')) {
+        return true;
+      }
+      // 完全なURLの場合も許可
       try {
         new URL(value);
         return true;
@@ -281,8 +290,8 @@ router.post('/', [
       }
     }
     return false;
-  }).withMessage('imageUrl must be a valid URL or null'),
-  body('isPublished').optional().isBoolean()
+  }).withMessage('imageUrl must be a valid URL, relative path starting with /uploads/, or null'),
+  body('isPublished').optional().isBoolean().toBoolean()
 ], async (req: AuthRequest, res: Response) => {
   try {
     const errors = validationResult(req);
@@ -299,7 +308,7 @@ router.post('/', [
       });
     }
 
-    const { title, content, categoryId, tags, imageUrl } = req.body;
+    const { title, content, categoryId, tags, imageUrl, isPublished } = req.body;
 
     // 天気情報の取得（外部API利用 - レベル2達成要件）
     let weatherInfo = null;
@@ -323,6 +332,7 @@ router.post('/', [
         title,
         content: weatherInfo ? `${content}\n\n🌤️ 現在の天気: ${weatherInfo}` : content,
         imageUrl,
+        isPublished: isPublished !== undefined ? isPublished : true, // デフォルトは公開
         authorId: req.user.id,
         categoryId: categoryId || null,
         tags: tags && tags.length > 0 ? {
@@ -387,7 +397,30 @@ router.put('/:id', [
   body('content').optional().isLength({ min: 1, max: 10000 }),
   body('categoryId').optional().isString(),
   body('tags').optional().isArray(),
-  body('imageUrl').optional().isURL(),
+  body('imageUrl').optional().custom((value) => {
+    if (value === null || value === undefined || value === '') {
+      return true; // null, undefined, 空文字列は許可
+    }
+    // 文字列の場合は相対パスまたは完全なURLを許可
+    if (typeof value === 'string') {
+      // 空文字列の場合は許可
+      if (value.trim() === '') {
+        return true;
+      }
+      // 相対パス（/uploads/で始まる）の場合は許可
+      if (value.startsWith('/uploads/')) {
+        return true;
+      }
+      // 完全なURLの場合も許可
+      try {
+        new URL(value);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }).withMessage('imageUrl must be a valid URL, relative path starting with /uploads/, or null'),
   body('isPublished').optional().isBoolean()
 ], async (req: AuthRequest, res: Response) => {
   try {
