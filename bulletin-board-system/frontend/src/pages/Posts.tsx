@@ -40,14 +40,19 @@ const Posts: React.FC = () => {
   // 投稿データの取得
   const { data: postsData, isLoading, error } = useQuery(
     ['posts', page, limit, search, categoryId, sortBy, sortOrder],
-    () => postsApi.getPosts({
-      page,
-      limit,
-      search,
-      categoryId,
-      sortBy,
-      sortOrder: sortOrder as 'asc' | 'desc'
-    }),
+    () => {
+      console.log('=== 投稿データ取得開始 ===')
+      console.log('クエリパラメータ:', { page, limit, search, categoryId, sortBy, sortOrder })
+      
+      return postsApi.getPosts({
+        page,
+        limit,
+        search,
+        categoryId,
+        sortBy,
+        sortOrder: sortOrder as 'asc' | 'desc'
+      })
+    },
     {
       keepPreviousData: true
     }
@@ -59,7 +64,7 @@ const Posts: React.FC = () => {
     categoriesApi.getCategories
   )
 
-  // URLパラメータの更新
+  // URLパラメータの更新（検索条件変更時）
   const updateSearchParams = (updates: Record<string, string>) => {
     const newParams = new URLSearchParams(searchParams)
     Object.entries(updates).forEach(([key, value]) => {
@@ -71,6 +76,22 @@ const Posts: React.FC = () => {
     })
     newParams.set('page', '1') // 検索条件変更時は1ページ目に戻る
     setSearchParams(newParams)
+  }
+
+  // ページネーション専用のパラメータ更新
+  const updatePageParams = (newPage: number) => {
+    console.log('=== ページネーション処理開始 ===')
+    console.log('現在のページ:', page)
+    console.log('新しいページ:', newPage)
+    console.log('現在のURLパラメータ:', searchParams.toString())
+    
+    const newParams = new URLSearchParams(searchParams)
+    newParams.set('page', newPage.toString())
+    
+    console.log('新しいURLパラメータ:', newParams.toString())
+    setSearchParams(newParams)
+    
+    console.log('=== ページネーション処理完了 ===')
   }
 
   // 検索実行
@@ -94,7 +115,7 @@ const Posts: React.FC = () => {
 
   // ページネーション
   const handlePageChange = (newPage: number) => {
-    updateSearchParams({ page: newPage.toString() })
+    updatePageParams(newPage)
   }
 
   // フィルターリセット
@@ -354,6 +375,9 @@ const Posts: React.FC = () => {
             {/* ページネーション */}
             {postsData?.pagination && postsData.pagination.totalPages > 1 && (
               <div className="flex justify-center">
+                <div className="mb-4 text-center text-sm text-gray-600">
+                  現在のページ: {page} / {postsData.pagination.totalPages}ページ
+                </div>
                 <nav className="flex items-center space-x-2">
                   {/* 前のページ */}
                   <Button
