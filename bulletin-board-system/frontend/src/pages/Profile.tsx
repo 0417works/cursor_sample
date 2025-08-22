@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { Card, CardHeader, CardBody } from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -23,16 +24,27 @@ import { ja } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 
 const Profile: React.FC = () => {
-  const { user, updateUser } = useAuth()
+  const { user, updateProfile } = useAuth()
   const queryClient = useQueryClient()
   
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
-    username: user?.username || '',
-    email: user?.email || '',
-    bio: user?.bio || ''
+    username: '',
+    email: '',
+    bio: ''
   })
   const [editErrors, setEditErrors] = useState<{ [key: string]: string }>({})
+
+  // userが更新されたときにeditFormも更新
+  useEffect(() => {
+    if (user) {
+      setEditForm({
+        username: user.username || '',
+        email: user.email || '',
+        bio: user.bio || ''
+      })
+    }
+  }, [user])
 
   // ユーザーの投稿履歴を取得
   const { data: userPosts, isLoading: postsLoading } = useQuery(
@@ -55,33 +67,38 @@ const Profile: React.FC = () => {
 
   // プロフィール更新のミューテーション
   const updateProfileMutation = useMutation(
-    (userData: any) => authApi.updateProfile(userData),
+    (userData: any) => updateProfile(userData),
     {
       onSuccess: (data) => {
-        updateUser(data.user)
+        // 編集状態を終了
         setIsEditing(false)
-        toast.success('プロフィールを更新しました')
+        // ユーザー情報とユーザー投稿のキャッシュを更新
+        queryClient.invalidateQueries(['user'])
         queryClient.invalidateQueries(['userPosts', user?.id])
       },
       onError: (error: any) => {
-        console.error('Profile update error:', error.response?.data)
-        console.error('Full error object:', error)
+        console.error('=== プロフィール更新エラー ===');
+        console.error('Profile update error:', error.response?.data);
+        console.error('Full error object:', error);
+        console.error('Error response status:', error.response?.status);
+        console.error('Error response headers:', error.response?.headers);
+        console.error('Error request config:', error.config);
         
-        let message = error.response?.data?.error || 'プロフィールの更新に失敗しました'
+        let message = error.response?.data?.error || 'プロフィールの更新に失敗しました';
         
         // バリデーションエラーの詳細を表示
         if (error.response?.data?.details && Array.isArray(error.response.data.details)) {
           const details = error.response.data.details
             .map((detail: any) => `${detail.path}: ${detail.msg}`)
-            .join('\n')
-          message += `\n\n詳細:\n${details}`
+            .join('\n');
+          message += `\n\n詳細:\n${details}`;
         }
         
         // エラーレスポンスの全体をログに出力
-        console.error('Error response data:', error.response?.data)
-        console.error('Error response status:', error.response?.status)
+        console.error('Error response data:', error.response?.data);
+        console.error('Error response status:', error.response?.status);
         
-        toast.error(message)
+        toast.error(message);
       }
     }
   )
@@ -90,6 +107,7 @@ const Profile: React.FC = () => {
   const validateEditForm = () => {
     const newErrors: { [key: string]: string } = {}
 
+    // ユーザー名のバリデーション（必須）
     if (!editForm.username.trim()) {
       newErrors.username = 'ユーザー名を入力してください'
     } else if (editForm.username.length < 3) {
@@ -100,13 +118,15 @@ const Profile: React.FC = () => {
       newErrors.username = 'ユーザー名は英数字とアンダースコアのみ使用できます'
     }
 
+    // メールアドレスのバリデーション（必須）
     if (!editForm.email.trim()) {
       newErrors.email = 'メールアドレスを入力してください'
     } else if (!/\S+@\S+\.\S+/.test(editForm.email)) {
       newErrors.email = '有効なメールアドレスを入力してください'
     }
 
-    if (editForm.bio && editForm.bio.length > 500) {
+    // 自己紹介のバリデーション（オプション）
+    if (editForm.bio && editForm.bio.trim() && editForm.bio.length > 500) {
       newErrors.bio = '自己紹介は500文字以下で入力してください'
     }
 
@@ -122,17 +142,31 @@ const Profile: React.FC = () => {
       return
     }
 
-    console.log('Sending profile data:', editForm)
-    updateProfileMutation.mutate(editForm)
+    // 空文字列のフィールドは除外して送信
+    const profileData: any = {};
+    if (editForm.username.trim()) {
+      profileData.username = editForm.username.trim();
+    }
+    if (editForm.email.trim()) {
+      profileData.email = editForm.email.trim();
+    }
+    if (editForm.bio.trim()) {
+      profileData.bio = editForm.bio.trim();
+    }
+
+    console.log('Sending profile data:', profileData)
+    updateProfileMutation.mutate(profileData)
   }
 
   // 編集開始
   const startEditing = () => {
-    setEditForm({
-      username: user?.username || '',
-      email: user?.email || '',
-      bio: user?.bio || ''
-    })
+    if (user) {
+      setEditForm({
+        username: user.username || '',
+        email: user.email || '',
+        bio: user.bio || ''
+      })
+    }
     setEditErrors({})
     setIsEditing(true)
   }
@@ -162,6 +196,18 @@ const Profile: React.FC = () => {
           <Button onClick={() => window.location.href = '/login'}>
             ログインする
           </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // ユーザー情報が不完全な場合はローディング表示
+  if (!user.username || !user.email) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">読み込み中...</h2>
+          <p className="text-gray-600 mb-6">ユーザー情報を取得しています。</p>
         </div>
       </div>
     )

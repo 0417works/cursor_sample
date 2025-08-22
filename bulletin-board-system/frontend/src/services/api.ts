@@ -100,8 +100,19 @@ export const authApi = {
     email?: string
     bio?: string
   }) => {
-    const response = await apiClient.put('/auth/profile', userData)
-    return response.data
+    console.log('=== API updateProfile 開始 ===');
+    console.log('User data to send:', userData);
+    console.log('API endpoint:', '/auth/profile');
+    
+    try {
+      const response = await apiClient.put('/auth/profile', userData)
+      console.log('API response:', response);
+      return response.data
+    } catch (error) {
+      console.error('=== API updateProfile エラー ===');
+      console.error('API error:', error);
+      throw error;
+    }
   },
 
   // パスワード変更

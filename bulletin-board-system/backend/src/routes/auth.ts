@@ -368,14 +368,50 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => 
 // プロフィール更新
 router.put('/profile', [
   authenticateToken,
-  body('username').optional().isLength({ min: 3, max: 20 }).matches(/^[a-zA-Z0-9_]+$/),
-  body('email').optional().isEmail().normalizeEmail(),
-  body('bio').optional().isLength({ max: 500 }),
-  body('avatar').optional().isURL()
+  body('username').optional().custom((value) => {
+    if (value !== undefined && value !== '') {
+      if (value.length < 3 || value.length > 20) {
+        throw new Error('Username must be between 3 and 20 characters');
+      }
+      if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+        throw new Error('Username can only contain letters, numbers, and underscores');
+      }
+    }
+    return true;
+  }),
+  body('email').optional().custom((value) => {
+    if (value !== undefined && value !== '') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        throw new Error('Invalid email format');
+      }
+    }
+    return true;
+  }),
+  body('bio').optional().custom((value) => {
+    if (value !== undefined && value !== '') {
+      if (value.length > 500) {
+        throw new Error('Bio must be 500 characters or less');
+      }
+    }
+    return true;
+  }),
+  body('avatar').optional().custom((value) => {
+    if (value !== undefined && value !== '') {
+      if (!/^https?:\/\/.+/.test(value)) {
+        throw new Error('Avatar must be a valid URL');
+      }
+    }
+    return true;
+  })
 ], async (req: AuthRequest, res: Response) => {
   try {
+    console.log('=== プロフィール更新リクエスト開始 ===');
+    console.log('Request body:', req.body);
+    console.log('User ID:', req.user?.id);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ 
         error: 'Validation failed',
         details: errors.array() 
@@ -383,12 +419,14 @@ router.put('/profile', [
     }
 
     if (!req.user) {
+      console.log('No user found in request');
       return res.status(401).json({ 
         error: 'Authentication required' 
       });
     }
 
     const { username, email, bio, avatar } = req.body;
+    console.log('Extracted data:', { username, email, bio, avatar });
 
     // ユーザー名の重複チェック（変更される場合）
     if (username) {
@@ -427,14 +465,36 @@ router.put('/profile', [
     }
 
     // プロフィールの更新
+    const updateData: any = {};
+    
+    // 空文字列でない場合のみ更新データに含める
+    if (username !== undefined && username !== '') {
+      updateData.username = username;
+    }
+    if (email !== undefined && email !== '') {
+      updateData.email = email;
+    }
+    if (bio !== undefined && bio !== '') {
+      updateData.bio = bio;
+    }
+    if (avatar !== undefined && avatar !== '') {
+      updateData.avatar = avatar;
+    }
+    
+    console.log('Update data to be sent:', updateData);
+    
+    // 更新するデータがない場合はエラー
+    if (Object.keys(updateData).length === 0) {
+      console.log('No valid data provided for update');
+      return res.status(400).json({ 
+        error: 'No valid data provided for update' 
+      });
+    }
+    
+    console.log('Updating user with ID:', req.user.id);
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
-      data: {
-        username: username || undefined,
-        email: email || undefined,
-        bio: bio !== undefined ? bio : undefined,
-        avatar: avatar || undefined
-      },
+      data: updateData,
       select: {
         id: true,
         email: true,
@@ -445,11 +505,16 @@ router.put('/profile', [
         createdAt: true
       }
     });
+    
+    console.log('User updated successfully:', updatedUser);
 
-    res.json({
+    const response = {
       message: 'Profile updated successfully',
       user: updatedUser
-    });
+    };
+    
+    console.log('Sending response:', response);
+    res.json(response);
 
   } catch (error) {
     console.error('Update profile error:', error);

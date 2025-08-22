@@ -50,7 +50,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const token = localStorage.getItem('accessToken')
         if (token) {
           const userData = await authApi.getCurrentUser()
-          setUser(userData)
+          // APIレスポンスからuserオブジェクトを取得
+          if (userData.user) {
+            setUser(userData.user)
+          }
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error)
@@ -120,11 +123,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const updateProfile = async (data: Partial<User>) => {
     try {
+      console.log('=== AuthContext updateProfile 開始 ===');
+      console.log('Profile data to update:', data);
+      
       setIsLoading(true)
       const updatedUser = await authApi.updateProfile(data)
-      setUser(updatedUser)
+      
+      console.log('Profile update successful:', updatedUser);
+      // APIレスポンスからuserオブジェクトを取得
+      if (updatedUser.user) {
+        setUser(updatedUser.user)
+      }
       toast.success('プロフィールを更新しました')
     } catch (error: any) {
+      console.error('=== AuthContext updateProfile エラー ===');
+      console.error('Profile update error:', error);
+      console.error('Error response:', error.response);
+      
       const message = error.response?.data?.error || 'プロフィールの更新に失敗しました'
       toast.error(message)
       throw error
