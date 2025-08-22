@@ -311,6 +311,12 @@ router.post('/forgot-password', [
     });
 
     if (user) {
+      // 既存のリセットトークンを無効化
+      await prisma.passwordResetToken.updateMany({
+        where: { userId: user.id },
+        data: { used: true }
+      });
+
       // パスワードリセットトークンの生成
       const resetToken = jwt.sign(
         { userId: user.id, type: 'password-reset' },
@@ -318,11 +324,33 @@ router.post('/forgot-password', [
         { expiresIn: '1h' }
       );
 
+      // データベースにリセットトークンを保存
+      await prisma.passwordResetToken.create({
+        data: {
+          token: resetToken,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1時間後
+          used: false
+        }
+      });
+
       // パスワードリセットメールの送信
       try {
-        await sendPasswordResetEmail(user.email, resetToken);
+        const resetUrl = `${process.env.CORS_ORIGIN?.split(',')[0] || 'http://localhost:5173'}/reset-password/${resetToken}`;
+        await sendPasswordResetEmail(user.email, user.username, resetUrl);
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('\n=== パスワードリセットリンク（開発環境用） ===');
+          console.log('リセットURL:', resetUrl);
+          console.log('トークン:', resetToken);
+          console.log('===============================================\n');
+        }
       } catch (emailError) {
         console.warn('Failed to send password reset email:', emailError);
+        // メール送信に失敗した場合、トークンを削除
+        await prisma.passwordResetToken.deleteMany({
+          where: { userId: user.id }
+        });
       }
     }
 
@@ -592,6 +620,201 @@ router.put('/password', [
     res.status(500).json({ 
       error: 'Internal server error' 
     });
+  }
+});
+
+// パスワードリセット要求
+router.post('/forgot-password', [
+  body('email').isEmail().normalizeEmail()
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: errors.array() 
+      });
+    }
+
+    const { email } = req.body;
+
+    // ユーザーの存在確認
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      // セキュリティのため、ユーザーが存在しない場合でも成功レスポンスを返す
+      return res.json({
+        message: 'If the email exists, a password reset link has been sent'
+      });
+    }
+
+    // 既存のトークンを無効化
+    await prisma.passwordResetToken.updateMany({
+      where: { userId: user.id },
+      data: { used: true }
+    });
+
+    // 新しいリセットトークンの生成
+    const resetToken = require('crypto').randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24時間後
+
+    // トークンの保存
+    await prisma.passwordResetToken.create({
+      data: {
+        token: resetToken,
+        userId: user.id,
+        expiresAt
+      }
+    });
+
+    // パスワードリセットメールの送信
+    try {
+      const resetUrl = `${process.env.CORS_ORIGIN?.split(',')[0] || 'http://localhost:5173'}/reset-password/${resetToken}`;
+      await sendPasswordResetEmail(user.email, user.username, resetUrl);
+      
+      // 開発環境ではコンソールにリセットリンクを表示
+      if (process.env.NODE_ENV === 'development') {
+        console.log('\n=== パスワードリセットリンク（開発環境用） ===');
+        console.log('リセットURL:', resetUrl);
+        console.log('トークン:', resetToken);
+        console.log('===============================================\n');
+      }
+    } catch (emailError) {
+      console.warn('Failed to send password reset email:', emailError);
+      // メール送信に失敗した場合、トークンを削除
+      await prisma.passwordResetToken.delete({
+        where: { token: resetToken }
+      });
+      return res.status(500).json({ 
+        error: 'Failed to send password reset email' 
+      });
+    }
+
+    res.json({
+      message: 'If the email exists, a password reset link has been sent'
+    });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// パスワードリセットトークンの検証
+router.get('/reset-password/validate/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    const resetToken = await prisma.passwordResetToken.findUnique({
+      where: { token },
+      include: { user: true }
+    });
+
+    if (!resetToken) {
+      return res.status(400).json({ 
+        error: 'Invalid reset token' 
+      });
+    }
+
+    if (resetToken.used) {
+      return res.status(400).json({ 
+        error: 'Reset token has already been used' 
+      });
+    }
+
+    if (resetToken.expiresAt < new Date()) {
+      return res.status(400).json({ 
+        error: 'Reset token has expired' 
+      });
+    }
+
+    res.json({
+      message: 'Token is valid',
+      email: resetToken.user.email
+    });
+
+  } catch (error) {
+    console.error('Validate reset token error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// パスワードリセット実行
+router.post('/reset-password', [
+  body('token').isLength({ min: 1 }),
+  body('password').isLength({ min: 6 })
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: errors.array() 
+      });
+    }
+
+    const { token, password } = req.body;
+
+    // トークンの検証
+    const resetToken = await prisma.passwordResetToken.findUnique({
+      where: { token },
+      include: { user: true }
+    });
+
+    if (!resetToken) {
+      return res.status(400).json({ 
+        error: 'Invalid reset token' 
+      });
+    }
+
+    if (resetToken.used) {
+      return res.status(400).json({ 
+        error: 'Reset token has already been used' 
+      });
+    }
+
+    if (resetToken.expiresAt < new Date()) {
+      return res.status(400).json({ 
+        error: 'Reset token has expired' 
+      });
+    }
+
+    // パスワードのハッシュ化
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || '12');
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // パスワードの更新
+    await prisma.user.update({
+      where: { id: resetToken.userId },
+      data: { password: hashedPassword }
+    });
+
+    // トークンを無効化
+    await prisma.passwordResetToken.update({
+      where: { id: resetToken.id },
+      data: { used: true }
+    });
+
+    // 既存のセッションを削除（セキュリティのため）
+    await prisma.userSession.deleteMany({
+      where: { userId: resetToken.userId }
+    });
+
+    res.json({
+      message: 'Password reset successfully'
+    });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+      });
   }
 });
 

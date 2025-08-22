@@ -16,6 +16,8 @@ import HelpCenter from './pages/HelpCenter'
 import TermsOfService from './pages/TermsOfService'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import Contact from './pages/Contact'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 
 // React Queryクライアントの設定
 const queryClient = new QueryClient({
@@ -38,6 +40,8 @@ const App: React.FC = () => {
               {/* 認証不要のページ */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
               
               {/* レイアウト付きのページ */}
               <Route path="/" element={<Layout><Home /></Layout>} />

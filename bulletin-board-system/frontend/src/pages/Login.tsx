@@ -143,9 +143,12 @@ const Login: React.FC = () => {
                 </div>
 
                 <div className="text-sm">
-                  <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+                  <Link
+                    to="/forgot-password"
+                    className="font-medium text-blue-600 hover:text-blue-500"
+                  >
                     パスワードを忘れた場合
-                  </a>
+                  </Link>
                 </div>
               </div>
 

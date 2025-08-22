@@ -2,6 +2,37 @@ import nodemailer from 'nodemailer';
 
 // メールトランスポーターの設定
 const createTransporter = () => {
+  console.log('=== メールトランスポーター設定デバッグ ===');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('SMTP_HOST:', process.env.SMTP_HOST);
+  console.log('SMTP_HOST length:', process.env.SMTP_HOST?.length);
+  console.log('==========================================');
+
+  // 開発環境ではモックトランスポーターを使用
+  if (process.env.NODE_ENV === 'development' && (!process.env.SMTP_HOST || process.env.SMTP_HOST === '')) {
+    console.log('開発環境用モックトランスポーターを使用します');
+    return {
+      sendMail: async (mailOptions: any) => {
+        console.log('=== 開発環境用メール送信シミュレーション ===');
+        console.log('送信先:', mailOptions.to);
+        console.log('件名:', mailOptions.subject);
+        console.log('HTML内容:', mailOptions.html);
+        console.log('==========================================');
+        return { messageId: 'mock-message-id' };
+      },
+      verify: async () => {
+        console.log('メールサービス接続テスト（開発環境用モック）');
+        return true;
+      }
+    };
+  }
+
+  // 本番環境またはSMTP設定がある場合
+  if (!process.env.SMTP_HOST) {
+    throw new Error('SMTP_HOST environment variable is required for production');
+  }
+
+  console.log('本番環境用SMTPトランスポーターを使用します');
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -19,7 +50,7 @@ export const sendWelcomeEmail = async (email: string, username: string): Promise
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: `"掲示板システム" <${process.env.SMTP_USER}>`,
+      from: process.env.SMTP_USER ? `"掲示板システム" <${process.env.SMTP_USER}>` : '"掲示板システム" <noreply@example.com>',
       to: email,
       subject: '掲示板システムへようこそ！',
       html: `
@@ -54,19 +85,18 @@ export const sendWelcomeEmail = async (email: string, username: string): Promise
 };
 
 // パスワードリセットメールの送信
-export const sendPasswordResetEmail = async (email: string, resetToken: string): Promise<void> => {
+export const sendPasswordResetEmail = async (email: string, username: string, resetUrl: string): Promise<void> => {
   try {
     const transporter = createTransporter();
-    
-    const resetUrl = `${process.env.CORS_ORIGIN || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
-      from: `"掲示板システム" <${process.env.SMTP_USER}>`,
+      from: process.env.SMTP_USER ? `"掲示板システム" <${process.env.SMTP_USER}>` : '"掲示板システム" <noreply@example.com>',
       to: email,
       subject: 'パスワードリセットのご案内',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #EF4444;">パスワードリセットのご案内</h2>
+          <p>こんにちは、${username}さん</p>
           <p>掲示板システムのパスワードリセットが要求されました。</p>
           <p>以下のリンクをクリックして、新しいパスワードを設定してください：</p>
           <div style="text-align: center; margin: 30px 0;">
@@ -78,9 +108,10 @@ export const sendPasswordResetEmail = async (email: string, resetToken: string):
           </div>
           <p><strong>注意：</strong></p>
           <ul>
-            <li>このリンクは1時間後に無効になります</li>
+            <li>このリンクは24時間後に無効になります</li>
             <li>パスワードリセットを要求していない場合は、このメールを無視してください</li>
             <li>セキュリティのため、このリンクは他人と共有しないでください</li>
+            <li>このリンクは1回のみ使用できます</li>
           </ul>
           <p>何かご質問がございましたら、お気軽にお問い合わせください。</p>
           <hr>
@@ -110,7 +141,7 @@ export const sendCommentNotificationEmail = async (
     const transporter = createTransporter();
 
     const mailOptions = {
-      from: `"掲示板システム" <${process.env.SMTP_USER}>`,
+      from: process.env.SMTP_USER ? `"掲示板システム" <${process.env.SMTP_USER}>` : '"掲示板システム" <noreply@example.com>',
       to: postAuthorEmail,
       subject: '投稿に新しいコメントがつきました',
       html: `
