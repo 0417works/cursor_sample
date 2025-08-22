@@ -133,7 +133,8 @@ router.post('/login', [
         username: true,
         password: true,
         role: true,
-        isActive: true
+        isActive: true,
+        createdAt: true
       }
     });
 
@@ -184,7 +185,8 @@ router.post('/login', [
         id: user.id,
         email: user.email,
         username: user.username,
-        role: user.role
+        role: user.role,
+        createdAt: user.createdAt
       },
       accessToken,
       refreshToken

@@ -459,7 +459,7 @@ const Profile: React.FC = () => {
               <CardHeader>
                 <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                   <FileText className="w-5 h-5 mr-2" />
-                  投稿履歴
+                  あなたの投稿履歴
                 </h2>
               </CardHeader>
               <CardBody>

@@ -45,6 +45,12 @@ router.get('/', [
       where.categoryId = categoryId;
     }
 
+    // authorIdパラメータでの絞り込み（フロントエンド対応）
+    const authorId = req.query.authorId as string;
+    if (authorId && authorId.trim() !== '') {
+      where.authorId = authorId;
+    }
+
     if (tag) {
       where.tags = {
         some: {
@@ -92,7 +98,7 @@ router.get('/', [
     }
 
     // デバッグ用のログ出力
-    console.log('Query parameters:', { page, limit, offset, category, categoryId, tag, search, sort, sortBy, sortOrder });
+    console.log('Query parameters:', { page, limit, offset, category, categoryId, authorId, tag, search, sort, sortBy, sortOrder });
     console.log('Where clause:', JSON.stringify(where, null, 2));
     console.log('Order by:', JSON.stringify(orderBy, null, 2));
 
