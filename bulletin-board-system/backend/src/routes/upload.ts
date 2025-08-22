@@ -69,7 +69,7 @@ router.post('/single', authenticateToken, upload.single('image'), async (req: Au
       mimetype: req.file.mimetype,
       size: req.file.size,
       path: req.file.path,
-      url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/uploads/${req.file.filename}`,
+      url: `/uploads/${req.file.filename}`,
       uploadedBy: req.user.id,
       uploadedAt: new Date()
     };
@@ -109,7 +109,7 @@ router.post('/multiple', authenticateToken, upload.array('images', 5), async (re
       mimetype: file.mimetype,
       size: file.size,
       path: file.path,
-      url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/uploads/${file.filename}`,
+      url: `/uploads/${file.filename}`,
       uploadedBy: req.user!.id,
       uploadedAt: new Date()
     }));
@@ -228,7 +228,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res: Response) => {
           filename,
           size: stats.size,
           uploadedAt: stats.birthtime,
-          url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/uploads/${filename}`,
+          url: `/uploads/${filename}`,
           mimetype: getMimeType(filename)
         };
       })

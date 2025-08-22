@@ -41,7 +41,7 @@ router.get('/', [
 
     // categoryIdパラメータでの絞り込み（フロントエンド対応）
     const categoryId = req.query.categoryId as string;
-    if (categoryId) {
+    if (categoryId && categoryId.trim() !== '') {
       where.categoryId = categoryId;
     }
 
@@ -53,10 +53,11 @@ router.get('/', [
       };
     }
 
-    if (search) {
+    if (search && search.trim() !== '') {
+      const searchTerm = search.trim();
       where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { content: { contains: search, mode: 'insensitive' } }
+        { title: { contains: searchTerm } },
+        { content: { contains: searchTerm } }
       ];
     }
 
@@ -66,7 +67,7 @@ router.get('/', [
     // sortByとsortOrderパラメータが指定されている場合はそれを使用
     if (sortBy && sortOrder) {
       // 有効なフィールド名かチェック
-      const validSortFields = ['createdAt', 'updatedAt', 'title', 'viewCount', 'likeCount'];
+      const validSortFields = ['createdAt', 'updatedAt', 'title', 'viewCount'];
       if (validSortFields.includes(sortBy)) {
         orderBy[sortBy] = sortOrder;
       } else {
@@ -90,48 +91,59 @@ router.get('/', [
       }
     }
 
+    // デバッグ用のログ出力
+    console.log('Query parameters:', { page, limit, offset, category, categoryId, tag, search, sort, sortBy, sortOrder });
+    console.log('Where clause:', JSON.stringify(where, null, 2));
+    console.log('Order by:', JSON.stringify(orderBy, null, 2));
+
     // 投稿の取得
-    const [posts, total] = await Promise.all([
-      prisma.post.findMany({
-        where,
-        include: {
-          author: {
-            select: {
-              id: true,
-              username: true,
-              avatar: true
-            }
-          },
-          category: {
-            select: {
-              id: true,
-              name: true,
-              color: true
-            }
-          },
-          tags: {
-            include: {
-              tag: {
-                select: {
-                  id: true,
-                  name: true,
-                  color: true
+    let posts, total;
+    try {
+      [posts, total] = await Promise.all([
+        prisma.post.findMany({
+          where,
+          include: {
+            author: {
+              select: {
+                id: true,
+                username: true,
+                avatar: true
+              }
+            },
+            category: {
+              select: {
+                id: true,
+                name: true,
+                color: true
+              }
+            },
+            tags: {
+              include: {
+                tag: {
+                  select: {
+                    id: true,
+                    name: true,
+                    color: true
+                  }
                 }
+              }
+            },
+            _count: {
+              select: {
+                comments: true
               }
             }
           },
-          _count: {
-            select: {
-              comments: true
-            }
-          }
-        },
-        orderBy,
-        skip: offset,
-        take: limit
-      }),
-      prisma.post.count({ where })
-    ]);
+          orderBy,
+          skip: offset,
+          take: limit
+        }),
+        prisma.post.count({ where })
+      ]);
+    } catch (dbError) {
+      console.error('Database query error:', dbError);
+      throw new Error(`Database query failed: ${dbError instanceof Error ? dbError.message : 'Unknown database error'}`);
+    }
 
     // ページネーション情報の計算
     const totalPages = Math.ceil(total / limit);
@@ -153,18 +165,19 @@ router.get('/', [
   } catch (error) {
     console.error('Get posts error:', error);
     
-    // 開発環境ではより詳細なエラー情報を提供
-    if (process.env.NODE_ENV === 'development') {
-      res.status(500).json({ 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined
-      });
-    } else {
-      res.status(500).json({ 
-        error: 'Internal server error' 
-      });
+    // Prismaエラーの詳細情報を取得
+    let errorDetails = 'Unknown error';
+    if (error instanceof Error) {
+      errorDetails = error.message;
+      console.error('Error stack:', error.stack);
     }
+    
+    // より詳細なエラー情報を提供
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: errorDetails,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
