@@ -100,7 +100,7 @@ const CreatePost: React.FC = () => {
         queryClient.invalidateQueries(['posts']);
         queryClient.invalidateQueries(['drafts']);
         
-        toast.success('投稿を作成しました')
+                     toast.success('投稿を作成しました', { duration: 1500 })
         
         // 下書きとして保存した場合は下書き一覧に、公開した場合は投稿一覧に遷移
         if (data.post?.isPublished) {
@@ -119,7 +119,7 @@ const CreatePost: React.FC = () => {
           message = error.response.data.error
         }
         
-        toast.error(message)
+        toast.error(message, { duration: 2000 })
         console.error('Create post error:', error.response?.data)
         console.error('Error details:', error.response?.data?.details)
         
@@ -151,7 +151,7 @@ const CreatePost: React.FC = () => {
         queryClient.invalidateQueries(['drafts']);
         queryClient.invalidateQueries(['posts']);
         
-        toast.success('投稿を更新しました')
+        toast.success('投稿を更新しました', { duration: 1500 })
         
         // 下書きとして保存した場合は下書き一覧に、公開した場合は投稿一覧に遷移
         if (data.post?.isPublished) {
@@ -163,7 +163,7 @@ const CreatePost: React.FC = () => {
       onError: (error: any) => {
         console.error('=== 投稿更新エラー ===');
         console.error('Post update error:', error);
-        toast.error('投稿の更新に失敗しました')
+        toast.error('投稿の更新に失敗しました', { duration: 2000 })
       }
     }
   )

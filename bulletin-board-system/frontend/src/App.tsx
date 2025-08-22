@@ -12,6 +12,10 @@ import PostDetail from './pages/PostDetail'
 import CreatePost from './pages/CreatePost'
 import Profile from './pages/Profile'
 import Drafts from './pages/Drafts'
+import HelpCenter from './pages/HelpCenter'
+import TermsOfService from './pages/TermsOfService'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import Contact from './pages/Contact'
 
 // React Queryクライアントの設定
 const queryClient = new QueryClient({
@@ -44,28 +48,35 @@ const App: React.FC = () => {
               <Route path="/profile" element={<Layout><Profile /></Layout>} />
               <Route path="/drafts" element={<Drafts />} />
               
+              {/* サポート・法的ページ */}
+              <Route path="/help" element={<HelpCenter />} />
+              <Route path="/terms" element={<TermsOfService />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/contact" element={<Contact />} />
+              
               {/* 404ページ */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             
             {/* トースト通知 */}
             <Toaster
-              position="top-right"
+              position="top-left"
               toastOptions={{
-                duration: 4000,
+                duration: 3000,
                 style: {
                   background: '#363636',
                   color: '#fff',
+                  zIndex: 9999,
                 },
                 success: {
-                  duration: 3000,
+                  duration: 2000,
                   iconTheme: {
                     primary: '#10b981',
                     secondary: '#fff',
                   },
                 },
                 error: {
-                  duration: 5000,
+                  duration: 3000,
                   iconTheme: {
                     primary: '#ef4444',
                     secondary: '#fff',

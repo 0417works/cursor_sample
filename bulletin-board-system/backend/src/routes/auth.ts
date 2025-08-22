@@ -59,7 +59,8 @@ router.post('/register', [
         email: true,
         username: true,
         role: true,
-        createdAt: true
+        createdAt: true,
+        bio: true
       }
     });
 
@@ -134,7 +135,8 @@ router.post('/login', [
         password: true,
         role: true,
         isActive: true,
-        createdAt: true
+        createdAt: true,
+        bio: true
       }
     });
 
@@ -186,7 +188,8 @@ router.post('/login', [
         email: user.email,
         username: user.username,
         role: user.role,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
+        bio: user.bio
       },
       accessToken,
       refreshToken
@@ -250,7 +253,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
             email: true,
             username: true,
             role: true,
-            isActive: true
+            isActive: true,
+            bio: true
           }
         }
       }

@@ -98,7 +98,7 @@ const Profile: React.FC = () => {
         console.error('Error response data:', error.response?.data);
         console.error('Error response status:', error.response?.status);
         
-        toast.error(message);
+                   toast.error(message, { duration: 2000 });
       }
     }
   )

@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('refreshToken', response.refreshToken)
       
       setUser(response.user)
-      toast.success('ログインに成功しました')
+      toast.success('ログインに成功しました', { duration: 1500 })
       navigate('/')
     } catch (error: any) {
       const message = error.response?.data?.error || 'ログインに失敗しました'
@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // 登録成功後、自動的にログイン
       await login(email, password)
-      toast.success('アカウント登録に成功しました')
+      toast.success('アカウント登録に成功しました', { duration: 1500 })
     } catch (error: any) {
       const message = error.response?.data?.error || 'アカウント登録に失敗しました'
       toast.error(message)
@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
       setUser(null)
-      toast.success('ログアウトしました')
+      toast.success('ログアウトしました', { duration: 1500 })
       navigate('/login')
     }
   }
@@ -134,7 +134,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (updatedUser.user) {
         setUser(updatedUser.user)
       }
-      toast.success('プロフィールを更新しました')
+      toast.success('プロフィールを更新しました', { duration: 1500 })
     } catch (error: any) {
       console.error('=== AuthContext updateProfile エラー ===');
       console.error('Profile update error:', error);
