@@ -271,13 +271,13 @@ const Register: React.FC = () => {
                   required
                 />
                 <label htmlFor="agree-terms" className="ml-2 block text-sm text-gray-900">
-                  <a href="#" className="text-blue-600 hover:text-blue-500">
+                  <Link to="/terms" className="text-blue-600 hover:text-blue-500">
                     利用規約
-                  </a>
+                  </Link>
                   と
-                  <a href="#" className="text-blue-600 hover:text-blue-500">
+                  <Link to="/privacy" className="text-blue-600 hover:text-blue-500">
                     プライバシーポリシー
-                  </a>
+                  </Link>
                   に同意します
                 </label>
               </div>

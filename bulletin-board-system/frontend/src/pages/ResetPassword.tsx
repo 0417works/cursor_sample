@@ -49,20 +49,16 @@ const ResetPassword: React.FC = () => {
   }
 
   const validatePassword = (password: string) => {
-    const minLength = 8
-    const hasUpperCase = /[A-Z]/.test(password)
-    const hasLowerCase = /[a-z]/.test(password)
+    const minLength = 6
+    const hasLetters = /[a-zA-Z]/.test(password)
     const hasNumbers = /\d/.test(password)
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password)
 
     return {
-      isValid: password.length >= minLength && hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar,
+      isValid: password.length >= minLength && hasLetters && hasNumbers,
       errors: {
         length: password.length >= minLength,
-        upperCase: hasUpperCase,
-        lowerCase: hasLowerCase,
-        numbers: hasNumbers,
-        specialChar: hasSpecialChar
+        letters: hasLetters,
+        numbers: hasNumbers
       }
     }
   }
@@ -227,23 +223,15 @@ const ResetPassword: React.FC = () => {
                 <div className="space-y-1">
                   <div className={`flex items-center text-xs ${passwordValidation.errors.length ? 'text-green-600' : 'text-red-500'}`}>
                     <span className="mr-2">•</span>
-                    最低8文字
+                    最低6文字
                   </div>
-                  <div className={`flex items-center text-xs ${passwordValidation.errors.upperCase ? 'text-green-600' : 'text-red-500'}`}>
+                  <div className={`flex items-center text-xs ${passwordValidation.errors.letters ? 'text-green-600' : 'text-red-500'}`}>
                     <span className="mr-2">•</span>
-                    大文字を含む
-                  </div>
-                  <div className={`flex items-center text-xs ${passwordValidation.errors.lowerCase ? 'text-green-600' : 'text-red-500'}`}>
-                    <span className="mr-2">•</span>
-                    小文字を含む
+                    文字を含む
                   </div>
                   <div className={`flex items-center text-xs ${passwordValidation.errors.numbers ? 'text-green-600' : 'text-red-500'}`}>
                     <span className="mr-2">•</span>
                     数字を含む
-                  </div>
-                  <div className={`flex items-center text-xs ${passwordValidation.errors.specialChar ? 'text-green-600' : 'text-red-500'}`}>
-                    <span className="mr-2">•</span>
-                    特殊文字を含む
                   </div>
                 </div>
               </div>
