@@ -176,6 +176,18 @@ export const postsApi = {
     const response = await apiClient.patch(`/posts/${id}/increment-view`)
     return response.data
   },
+
+  // 下書き一覧取得
+  getDrafts: async () => {
+    const response = await apiClient.get('/posts/drafts')
+    return response.data
+  },
+
+  // 下書きを公開に変更
+  publishDraft: async (id: string) => {
+    const response = await apiClient.patch(`/posts/${id}/publish`)
+    return response.data
+  },
 }
 
 // コメント関連のAPI

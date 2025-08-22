@@ -181,6 +181,68 @@ router.get('/', [
   }
 });
 
+// 下書き一覧の取得（投稿者と管理者のみ）
+router.get('/drafts', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: 'Authentication required' 
+      });
+    }
+
+    // ユーザーの投稿の下書きを取得
+    const drafts = await prisma.post.findMany({
+      where: {
+        authorId: req.user.id,
+        isPublished: false
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            color: true
+          }
+        },
+        tags: {
+          include: {
+            tag: {
+              select: {
+                id: true,
+                name: true,
+                color: true
+              }
+            }
+          }
+        },
+        _count: {
+          select: {
+            comments: true
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+
+    res.json({ drafts });
+
+  } catch (error) {
+    console.error('Get drafts error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});
+
 // 投稿詳細の取得
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -568,6 +630,56 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response)
   }
 });
 
+// 下書きを公開に変更
+router.patch('/:id/publish', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: 'Authentication required' 
+      });
+    }
+
+    const { id } = req.params;
+
+    // 投稿の存在確認と権限チェック
+    const existingPost = await prisma.post.findUnique({
+      where: { id },
+      include: { author: true }
+    });
+
+    if (!existingPost) {
+      return res.status(404).json({ 
+        error: 'Post not found' 
+      });
+    }
+
+    if (existingPost.authorId !== req.user.id && req.user.role === 'USER') {
+      return res.status(403).json({ 
+        error: 'Access denied' 
+      });
+    }
+
+    // 下書きを公開に変更
+    const updatedPost = await prisma.post.update({
+      where: { id },
+      data: {
+        isPublished: true
+      }
+    });
+
+    res.json({
+      message: 'Post published successfully',
+      post: updatedPost
+    });
+
+  } catch (error) {
+    console.error('Publish post error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error' 
+    });
+  }
+});
+
 // 投稿の公開/非公開切り替え
 router.patch('/:id/toggle-publish', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
@@ -724,8 +836,6 @@ router.patch('/:id/increment-view', async (req: Request, res: Response) => {
   }
 });
 
-export default router;
-
 // 全体の統計情報を取得
 router.get('/stats/overview', async (req: Request, res: Response) => {
   try {
@@ -737,7 +847,7 @@ router.get('/stats/overview', async (req: Request, res: Response) => {
       prisma.user.count({
         where: { isActive: true }
       }),
-      prisma.comment.count(),
+      prisma.post.count(),
       prisma.post.aggregate({
         where: { isPublished: true },
         _sum: { viewCount: true }
@@ -758,3 +868,5 @@ router.get('/stats/overview', async (req: Request, res: Response) => {
     });
   }
 });
+
+export default router;

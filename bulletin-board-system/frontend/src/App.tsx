@@ -11,6 +11,7 @@ import Posts from './pages/Posts'
 import PostDetail from './pages/PostDetail'
 import CreatePost from './pages/CreatePost'
 import Profile from './pages/Profile'
+import Drafts from './pages/Drafts'
 
 // React Queryクライアントの設定
 const queryClient = new QueryClient({
@@ -40,6 +41,7 @@ const App: React.FC = () => {
               <Route path="/posts/:id" element={<Layout><PostDetail /></Layout>} />
               <Route path="/posts/create" element={<Layout><CreatePost /></Layout>} />
               <Route path="/profile" element={<Layout><Profile /></Layout>} />
+              <Route path="/drafts" element={<Drafts />} />
               
               {/* 404ページ */}
               <Route path="*" element={<Navigate to="/" replace />} />
